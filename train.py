@@ -137,7 +137,10 @@ def on_end_epoch(state):
         confusion_logger.log(confusion_meter.value())
         # reconstructions
         test_sample = next(iter(get_iterator(args.dataset,False)))  # False sets value of train mode
-        ground_truth = (test_sample[0].unsqueeze(1).float() / 255.0)
+        if args.dataset == 'mnist':
+            ground_truth = test_sample[0].unsqueeze(1).float() / 255.0
+        elif args.dataset == 'cifar10':
+            ground_truth = test_sample[0].permute(0, 3, 1, 2).float() / 255.0
         _, reconstructions = model(Variable(ground_truth).cuda())
         reconstruction = reconstructions.cpu().view_as(ground_truth).data
         ground_truth_logger.log(make_grid(ground_truth, nrow=int(BATCH_SIZE ** 0.5),
@@ -164,8 +167,10 @@ from utils import augmentation, get_iterator
 
 def processor(sample):
     data, labels, training = sample
-    if args.dataset == 'mnist': data = data.unsqueese(1)
-    elif args.dataset == 'cifar10': data = data.permute(0, 3, 1, 2)
+    if args.dataset == 'mnist':
+        data = data.unsqueeze(1)
+    elif args.dataset == 'cifar10':
+        data = data.permute(0, 3, 1, 2)
     data = augmentation(data.float() / 255.0)
     labels = torch.LongTensor(labels)
     labels = torch.sparse.torch.eye(args.num_classes).index_select(dim=0, index=labels)
