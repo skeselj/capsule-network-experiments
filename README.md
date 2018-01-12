@@ -9,8 +9,10 @@ Modifiactions:
  - cifar10
  
 Todo
+  
   Modifications:
    - add a 3D dataset so we can test Hinton's equivariance claim
+   
   Experiments:
    - see if we can anneal learning by increasing batch size
    - see if we can get close to SOTA for cifar10
