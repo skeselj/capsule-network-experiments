@@ -77,6 +77,9 @@ class CapsuleNet(nn.Module):
         )
 
     def forward(self, x, y=None):
+        print("here ")
+        print(x.size())
+        
         x = F.relu(self.conv1(x), inplace=True)
         x = self.primary_capsules(x)
         x = self.digit_capsules(x).squeeze().transpose(0, 1)

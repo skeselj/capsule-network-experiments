@@ -18,7 +18,7 @@ from torch.autograd import Variable
 import torchnet as tnt
 from torch.optim import Adam
 from torchnet.engine import Engine
-from torchnet.logger import VisdomPlotLogger, VisdomLogger
+from torchnet.logger import VisdomPlotLogger, VisdomLogger, VisdomTextLogger
 from tqdm import tqdm
 
 import sys
@@ -37,6 +37,13 @@ parser.add_argument("--tracking_enabled", default=0, type=int)
 parser.add_argument("--num_epochs", default=50, type=int)
 parser.add_argument("--num_classes", default=10, type=int)
 args = parser.parse_args()
+
+text_logger = VisdomTextLogger()
+text_logger.log("Info about this run: \n\n" + \
+                "dataset: " + str(args.dataset) + "\n\n" + \
+                "batch_init" + str(args.batch_size_init) + "\n\n" + \
+                "batch_growth: " + "{0:.4f}".format(args.batch_size_growth) + "\n\n" + \
+                "num_routing_iterations: " + str(args.num_routing_iterations))
 
 name = "ds-" + str(args.dataset) + "_" + \
        "bi-" + str(args.batch_size_init) + "_" + \
@@ -62,6 +69,7 @@ elif args.dataset == 'cifar10':
     magic_number = 8
     width = 32
 
+    
 ### model and its loss
 from model import CapsuleLayer, CapsuleNet, CapsuleLoss
 model = CapsuleNet(img_channels, args.num_classes, args.num_routing_iterations, magic_number, width)
@@ -82,15 +90,15 @@ def reset_meters():
 
 ### show logs in visdom and log them if log_ir != ''
 
-train_loss_logger = VisdomPlotLogger('line', opts={'title': 'Train Loss\n'+name})
-train_error_logger = VisdomPlotLogger('line', opts={'title': 'Train Accuracy\n'+name})
+train_loss_logger = VisdomPlotLogger('line', opts={'title': 'Train Loss'})
+train_error_logger = VisdomPlotLogger('line', opts={'title': 'Train Accuracy'})
 test_loss_logger = VisdomPlotLogger('line', opts={'title': 'Test Loss'})
-test_accuracy_logger = VisdomPlotLogger('line', opts={'title': 'Test Accuracy\n'+name})
-confusion_logger = VisdomLogger('heatmap', opts={'title': 'Confusion matrix\n'+name,},
-                                'columnnames': list(range(args.num_classes)),
-                                'rownames': list(range(args.num_classes)))
-ground_truth_logger = VisdomLogger('image', opts={'title': 'Ground Truth\n'+name})
-reconstruction_logger = VisdomLogger('image', opts={'title': 'Reconstruction\n'+name})
+test_accuracy_logger = VisdomPlotLogger('line', opts={'title': 'Test Accuracy'})
+confusion_logger = VisdomLogger('heatmap', opts={'title': 'Confusion matrix',
+                                                 'columnnames': list(range(args.num_classes)),
+                                                 'rownames': list(range(args.num_classes))})
+ground_truth_logger = VisdomLogger('image', opts={'title': 'Ground Truth'})
+reconstruction_logger = VisdomLogger('image', opts={'title': 'Reconstruction\n'})
 
 
 def on_sample(state):
@@ -128,7 +136,7 @@ def on_end_epoch(state):
         test_accuracy_logger.log(state['epoch'], meter_accuracy.value()[0])
         confusion_logger.log(confusion_meter.value())
         # reconstructions
-        test_sample = next(iter(get_iterator(False)))  # False sets value of train mode
+        test_sample = next(iter(get_iterator(args.dataset,False)))  # False sets value of train mode
         ground_truth = (test_sample[0].unsqueeze(1).float() / 255.0)
         _, reconstructions = model(Variable(ground_truth).cuda())
         reconstruction = reconstructions.cpu().view_as(ground_truth).data
