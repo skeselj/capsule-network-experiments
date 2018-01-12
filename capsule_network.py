@@ -39,8 +39,8 @@ args = parser.parse_args()
 
 
 name = "bi-" + str(args.batch_size_init) + "_" + \
-       "bg-" + "{0:.4f}".format(args.batch_size_decay) + "_" + \
-       "nr"+ str(aargs.num_routing_iterations)
+       "bg-" + "{0:.4f}".format(args.batch_size_growth) + "_" + \
+       "nr-"+ str(args.num_routing_iterations)
 log_path = args.log_dir + "/" + name
 if args.log_dir != '':
     if not os.path.exists(log_path):
@@ -50,7 +50,7 @@ if args.log_dir != '':
     f = open(log_path + '/test.txt','w')
     f.close()
 
-os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
+os.environ['CUDA_VISIBLE_DEVICES'] = str(args.gpu)
     
 ### model and its loss
 from model import CapsuleLayer, CapsuleNet, CapsuleLoss
