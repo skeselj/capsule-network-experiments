@@ -55,7 +55,7 @@ class CapsuleLayer(nn.Module):
 
 
 class CapsuleNet(nn.Module):
-    def __init__(self, img_channels, num_classes=10, num_iterations=3):
+    def __init__(self, img_channels, num_classes=10, num_iterations=3, magic_number=6, width=28):
         super(CapsuleNet, self).__init__()
         self.num_classes = num_classes
 
@@ -64,7 +64,7 @@ class CapsuleNet(nn.Module):
                                 num_capsules=8, num_route_nodes=-1, num_iterations=num_iterations, \
                                 in_channels=256, out_channels=32, kernel_size=9, stride=2)
         self.digit_capsules = CapsuleLayer(\
-                                        num_capsules=num_classes, num_route_nodes=32 * 6 * 6, \
+                num_capsules=num_classes, num_route_nodes=32 * magic_number * magic_number, \
                                         num_iterations=num_iterations, in_channels=8, out_channels=16)
 
         self.decoder = nn.Sequential(
@@ -72,15 +72,11 @@ class CapsuleNet(nn.Module):
             nn.ReLU(inplace=True),
             nn.Linear(512, 1024),
             nn.ReLU(inplace=True),
-            nn.Linear(1024, 784),
+            nn.Linear(1024, img_channels * width**2),
             nn.Sigmoid()
         )
 
     def forward(self, x, y=None):
-        print("")
-        print(x.size())
-        print(y.size())
-        
         x = F.relu(self.conv1(x), inplace=True)
         x = self.primary_capsules(x)
         x = self.digit_capsules(x).squeeze().transpose(0, 1)
