@@ -7,7 +7,6 @@ from torch import nn
 import numpy as np
 
 import torchnet as tnt
-from torchvision.datasets.mnist import MNIST
 
 
 def softmax(input, dim=1):
@@ -29,12 +28,22 @@ def augmentation(x, max_shift=2):
     target_width_slice = slice(max(0, -w_shift), -w_shift + width)
     
     shifted_image = torch.zeros(*x.size())
-    shifted_image[:, :, source_height_slice, source_width_slice] = x[:, :, target_height_slice, target_width_slice]
+    shifted_image[:, :, source_height_slice, source_width_slice] = \
+                x[:, :, target_height_slice, target_width_slice]
     return shifted_image.float()
     
                                               
-def get_iterator(mode, batch_size=100):
-    dataset = MNIST(root='./data', download=True, train=mode)
+from torchvision.datasets.mnist import MNIST
+from torchvision.datasets.cifar import CIFAR10
+import torchvision.transforms as transforms
+
+def get_iterator(dataset_name, mode, batch_size=100):
+    if dataset_name == "mnist":
+        dataset = MNIST(root='./data/mnist', download=True, train=mode)
+    elif dataset_name == "cifar10":
+        #transform = transforms.Compose([transforms.ToTensor(),\
+        #                                transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
+        dataset = CIFAR10(root="./data/cifar10",download=True,train=mode)#, transform=transform)
     data = getattr(dataset, 'train_data' if mode else 'test_data')
     labels = getattr(dataset, 'train_labels' if mode else 'test_labels')
     tensor_dataset = tnt.dataset.TensorDataset([data, labels])

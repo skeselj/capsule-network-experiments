@@ -55,11 +55,11 @@ class CapsuleLayer(nn.Module):
 
 
 class CapsuleNet(nn.Module):
-    def __init__(self, num_classes=10, num_iterations=3):
+    def __init__(self, img_channels, num_classes=10, num_iterations=3):
         super(CapsuleNet, self).__init__()
         self.num_classes = num_classes
 
-        self.conv1 = nn.Conv2d(in_channels=1, out_channels=256, kernel_size=9, stride=1)
+        self.conv1 = nn.Conv2d(in_channels=img_channels, out_channels=256, kernel_size=9, stride=1)
         self.primary_capsules = CapsuleLayer(\
                                 num_capsules=8, num_route_nodes=-1, num_iterations=num_iterations, \
                                 in_channels=256, out_channels=32, kernel_size=9, stride=2)
@@ -77,6 +77,10 @@ class CapsuleNet(nn.Module):
         )
 
     def forward(self, x, y=None):
+        print("")
+        print(x.size())
+        print(y.size())
+        
         x = F.relu(self.conv1(x), inplace=True)
         x = self.primary_capsules(x)
         x = self.digit_capsules(x).squeeze().transpose(0, 1)
