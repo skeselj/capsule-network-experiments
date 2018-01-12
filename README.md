@@ -22,7 +22,7 @@ We need to do something interesting for our project. Some ideas are:
  - lead 2: increase batch size as form of annealing https://arxiv.org/abs/1711.00489 
  - lead 3: left/right loss terms https://arxiv.org/pdf/1710.09829.pdf
 
-Proposal:
+Proposal Feedback:
 
 1. Try to get SOTA on CIFAR
 
