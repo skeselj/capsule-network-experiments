@@ -34,22 +34,19 @@ parser.add_argument("--max_epochs", default=50, type=int)
 parser.add_argument("--num_classes", default=10, type=int)
 args = parser.parse_args()
 
-text_logger = VisdomTextLogger()
-text_logger.log("dataset: " + "________________ " + str(args.dataset) + " " \
-                "batch_init: "  + "________________ " + str(args.batch_size_init) + " "\
-                "batch_growth: " + "_______________ " + str(args.batch_size_growth) + " "\
-                "num_routing_iterations " + "________ " + str(args.num_routing_iterations) )
-
+# figure out names and if we're staring fresh
 name = "bi-" + str(args.batch_size_init) + "_" + \
        "bg-" + "{0:.4f}".format(args.batch_size_growth) + "_" + \
        "nr-"+ str(args.num_routing_iterations)
 model_path = args.model_dir + "/" + args.dataset + "/" + name
 log_path = args.log_dir + "/" + args.dataset + "/" + name
 starting_fresh = not os.path.exists(model_path +'/epoch_%d.pt' % args.starting_epoch)
-if args.model_dir != '':  # create model dir if need to
+
+# setup dirs if not created
+if args.model_dir != '':  
     if not os.path.exists(model_path):
         os.makedirs(model_path)   
-if args.log_dir != '' and starting_fresh: # overwrite text files if starting from scratch 
+if args.log_dir != '' and starting_fresh: 
     if not os.path.exists(log_path):
         os.makedirs(log_path)
     f = open(log_path + '/train.txt','w')
@@ -57,8 +54,17 @@ if args.log_dir != '' and starting_fresh: # overwrite text files if starting fro
     f = open(log_path + '/test.txt','w')
     f.close()
 
-os.environ['CUDA_VISIBLE_DEVICES'] = str(args.gpu)
+# print info about this run to visdom
+if not starting_fresh and args.tracking_enabled:
+    text_logger = VisdomTextLogger()
+    text_logger.log("dataset: " + "________________ " + str(args.dataset) + " " \
+                    "batch_init: "  + "________________ " + str(args.batch_size_init) + " "\
+                    "batch_growth: " + "_______________ " + str(args.batch_size_growth) + " "\
+                    "num_routing_iterations " + "________ " + str(args.num_routing_iterations) + " "\
+                    "starting_epcoh " + "_____________ " + str(args.starting_epoch))
 
+# gpu and dataset
+os.environ['CUDA_VISIBLE_DEVICES'] = str(args.gpu)
 if args.dataset == 'mnist':
     img_channels = 1
     magic_number = 6
@@ -68,7 +74,6 @@ elif args.dataset == 'cifar10':
     magic_number = 8
     width = 32
 
-    
 ### model and its loss
 from model import CapsuleLayer, CapsuleNet, CapsuleLoss
 model = CapsuleNet(img_channels, args.num_classes, args.num_routing_iterations, magic_number, width)
@@ -79,8 +84,7 @@ model.cuda()
 capsule_loss = CapsuleLoss()
 optimizer = Adam(model.parameters())
 
-
-### metric wrappers
+### wrappers for metrics (loss, accuracy, confusion)
 meter_loss = tnt.meter.AverageValueMeter()
 meter_accuracy = tnt.meter.ClassErrorMeter(accuracy=True)
 confusion_meter = tnt.meter.ConfusionMeter(args.num_classes, normalized=True)
@@ -89,9 +93,7 @@ def reset_meters():
     meter_loss.reset()
     confusion_meter.reset()
     
-
-### show logs in visdom and log them if log_ir != ''
-
+### show logs in visdom and log them if tracking_enabled
 train_loss_logger = VisdomPlotLogger('line', opts={'title': 'Train Loss'})
 train_error_logger = VisdomPlotLogger('line', opts={'title': 'Train Accuracy'})
 test_loss_logger = VisdomPlotLogger('line', opts={'title': 'Test Loss'})
@@ -103,9 +105,8 @@ ground_truth_logger = VisdomLogger('image', opts={'title': 'Ground Truth'})
 reconstruction_logger = VisdomLogger('image', opts={'title': 'Reconstruction\n'})
 
 
-#def on_start(state):
-#     state['epoch'] = 327
-#engine.hooks['on_start'] = on_start
+def on_start(state):
+     state['epoch'] = args.starting_epoch + 1
 
 def on_sample(state):
     state['sample'].append(state['train'])
@@ -165,6 +166,7 @@ def on_end_epoch(state):
 ### engine ties everything together
 
 engine = Engine()
+engine.hooks['on_start'] = on_start
 engine.hooks['on_sample'] = on_sample
 engine.hooks['on_start_epoch'] = on_start_epoch
 engine.hooks['on_forward'] = on_forward
