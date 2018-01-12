@@ -16,6 +16,7 @@ import numpy as np
 
 from torch.autograd import Variable
 import torchnet as tnt
+from torchvision.utils import make_grid
 from torch.optim import Adam
 from torchnet.engine import Engine
 from torchnet.logger import VisdomPlotLogger, VisdomLogger, VisdomTextLogger
@@ -143,9 +144,9 @@ def on_end_epoch(state):
             ground_truth = test_sample[0].permute(0, 3, 1, 2).float() / 255.0
         _, reconstructions = model(Variable(ground_truth).cuda())
         reconstruction = reconstructions.cpu().view_as(ground_truth).data
-        ground_truth_logger.log(make_grid(ground_truth, nrow=int(BATCH_SIZE ** 0.5),
+        ground_truth_logger.log(make_grid(ground_truth, nrow=int(args.batch_size_init ** 0.5),
                                           normalize=True, range=(0, 1)).numpy())
-        reconstruction_logger.log(make_grid(reconstruction, nrow=int(BATCH_SIZE ** 0.5),
+        reconstruction_logger.log(make_grid(reconstruction, nrow=int(args.batch_size_init ** 0.5),
                                             normalize=True, range=(0, 1)).numpy())
     if args.log_dir != '':
         f = open(log_path + '/test.txt','a')
