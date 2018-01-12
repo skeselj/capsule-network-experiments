@@ -1,12 +1,5 @@
 """
-Dynamic Routing Between Capsules
-https://arxiv.org/abs/1710.09829
-
-PyTorch implementation by Kenta Iwasaki @ Gram.AI.
-
-Current modifications:
- - made utils file and model file
- - don't plot confusion matrix or reconstructions
+Main
 """
 
 import torch
@@ -34,8 +27,10 @@ parser.add_argument("--num_routing_iterations", default=3, type=int)
 parser.add_argument('--gpu', default=0, type=int)
 parser.add_argument("--dataset",type=str,default="cifar10")   # mnist, cifar10
 parser.add_argument("--log_dir", default="logs", type=str)
+parser.add_argument("--model_dir", default="epochs", type=str)
+parser.add_argument("--starting_epoch", default=0, type=int)
 parser.add_argument("--tracking_enabled", default=0, type=int)
-parser.add_argument("--num_epochs", default=50, type=int)
+parser.add_argument("--max_epochs", default=50, type=int)
 parser.add_argument("--num_classes", default=10, type=int)
 args = parser.parse_args()
 
@@ -48,8 +43,13 @@ text_logger.log("dataset: " + "________________ " + str(args.dataset) + " " \
 name = "bi-" + str(args.batch_size_init) + "_" + \
        "bg-" + "{0:.4f}".format(args.batch_size_growth) + "_" + \
        "nr-"+ str(args.num_routing_iterations)
+model_path = args.model_dir + "/" + args.dataset + "/" + name
 log_path = args.log_dir + "/" + args.dataset + "/" + name
-if args.log_dir != '':
+starting_fresh = not os.path.exists(model_path +'/epoch_%d.pt' % args.starting_epoch)
+if args.model_dir != '':  # create model dir if need to
+    if not os.path.exists(model_path):
+        os.makedirs(model_path)   
+if args.log_dir != '' and starting_fresh: # overwrite text files if starting from scratch 
     if not os.path.exists(log_path):
         os.makedirs(log_path)
     f = open(log_path + '/train.txt','w')
@@ -72,6 +72,9 @@ elif args.dataset == 'cifar10':
 ### model and its loss
 from model import CapsuleLayer, CapsuleNet, CapsuleLoss
 model = CapsuleNet(img_channels, args.num_classes, args.num_routing_iterations, magic_number, width)
+if not starting_fresh:
+    print("Loading " + model_path)
+    model.load_state_dict(torch.load(model_path +'/epoch_%d.pt' % args.starting_epoch))
 model.cuda()
 capsule_loss = CapsuleLoss()
 optimizer = Adam(model.parameters())
@@ -99,6 +102,10 @@ confusion_logger = VisdomLogger('heatmap', opts={'title': 'Confusion matrix',
 ground_truth_logger = VisdomLogger('image', opts={'title': 'Ground Truth'})
 reconstruction_logger = VisdomLogger('image', opts={'title': 'Reconstruction\n'})
 
+
+#def on_start(state):
+#     state['epoch'] = 327
+#engine.hooks['on_start'] = on_start
 
 def on_sample(state):
     state['sample'].append(state['train'])
@@ -151,7 +158,8 @@ def on_end_epoch(state):
         f.write(msg + "\n")
         f.close()
 
-    #torch.save(model.state_dict(), 'epochs/'+name+'/epoch_%d.pt' % state['epoch'])
+    
+    torch.save(model.state_dict(), model_path +'/epoch_%d.pt' % state['epoch'])
 
 
 ### engine ties everything together
@@ -182,10 +190,6 @@ def processor(sample):
     loss = capsule_loss(data, labels, classes, reconstructions)
     return loss, classes
 
-#def on_start(state):
-#     state['epoch'] = 327
-#engine.hooks['on_start'] = on_start
-
 engine.train(processor, get_iterator(args.dataset, True), \
-             maxepoch=args.num_epochs, optimizer=optimizer)
+             maxepoch=args.max_epochs, optimizer=optimizer)
 
