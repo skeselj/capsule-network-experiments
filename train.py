@@ -40,17 +40,15 @@ parser.add_argument("--num_classes", default=10, type=int)
 args = parser.parse_args()
 
 text_logger = VisdomTextLogger()
-text_logger.log("Info about this run: \n\n" + \
-                "dataset: " + str(args.dataset) + "\n\n" + \
-                "batch_init" + str(args.batch_size_init) + "\n\n" + \
-                "batch_growth: " + "{0:.4f}".format(args.batch_size_growth) + "\n\n" + \
-                "num_routing_iterations: " + str(args.num_routing_iterations))
+text_logger.log("dataset: " + "________________ " + str(args.dataset) + " " \
+                "batch_init: "  + "________________ " + str(args.batch_size_init) + " "\
+                "batch_growth: " + "_______________ " + str(args.batch_size_growth) + " "\
+                "num_routing_iterations " + "________ " + str(args.num_routing_iterations) )
 
-name = "ds-" + str(args.dataset) + "_" + \
-       "bi-" + str(args.batch_size_init) + "_" + \
+name = "bi-" + str(args.batch_size_init) + "_" + \
        "bg-" + "{0:.4f}".format(args.batch_size_growth) + "_" + \
        "nr-"+ str(args.num_routing_iterations)
-log_path = args.log_dir + "/" + name
+log_path = args.log_dir + "/" + args.dataset + "/" + name
 if args.log_dir != '':
     if not os.path.exists(log_path):
         os.makedirs(log_path)
