@@ -27,7 +27,7 @@ import argparse
 parser = argparse.ArgumentParser()
 # hyperparameters
 parser.add_argument("--batch_size_init", default=100, type=int)
-parser.add_argument("--batch_size_decay", default=0, type=float)
+parser.add_argument("--batch_size_growth", default=0, type=float)
 parser.add_argument("--num_routing_iterations", default=3, type=int)
 # other parameters
 parser.add_argument('--gpu', default=0, type=int)
@@ -39,7 +39,7 @@ args = parser.parse_args()
 
 
 name = "bi-" + str(args.batch_size_init) + "_" + \
-       "bd-" + "{0:.4f}".format(args.batch_size_decay) + "_" + \
+       "bg-" + "{0:.4f}".format(args.batch_size_decay) + "_" + \
        "nr"+ str(aargs.num_routing_iterations)
 log_path = args.log_dir + "/" + name
 if args.log_dir != '':
