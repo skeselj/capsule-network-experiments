@@ -73,7 +73,7 @@ class CapsuleNet(nn.Module):
             nn.Sigmoid()
         )
 
-    def forward(self, x, y=None):
+    def forward(self, x, y=None, perturb=False):
         x = F.relu(self.conv1(x), inplace=True)
         x = self.primary_capsules(x)
         x = self.digit_capsules(x).squeeze().transpose(0, 1)
@@ -84,9 +84,26 @@ class CapsuleNet(nn.Module):
             _, max_length_indices = classes.max(dim=1)
             y = Variable(torch.sparse.torch.eye(self.num_classes)).cuda().index_select(dim=0, \
                                                 index=Variable(max_length_indices.data))
+            y_was_none = True
+        else:
+            y_was_none = False
         reconstructions = self.decoder((x * y[:, :, None]).view(x.size(0), -1))
-        return classes, reconstructions
+        ret = [classes, reconstructions]
 
+        if y_was_none and perturb:
+            r = torch.arange(-5, 6, 1)/20 # -0.25,-0.20,...,0.25
+            index = max_length_indices.data[0]
+            x = x[:1] # 1 x 10 x 16
+            y = y[:1] # 1 x 10
+            vec = (x * y[:, :, None]).view(x.size(0), -1) # 1 x 160
+            vec = vec.repeat(len(r) * 16, 1)
+            for feature_index in range(16):
+                for i, val in enumerate(r):
+                    vec[len(r)*feature_index+i, 16*index+feature_index] = val
+            perturbations = self.decoder(vec)
+            ret.append(perturbations)
+
+        return tuple(ret)
 
 class CapsuleLoss(nn.Module):
     def __init__(self):
