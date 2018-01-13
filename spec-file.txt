@@ -27,6 +27,7 @@ https://repo.continuum.io/pkgs/main/linux-64/pycparser-2.18-py36hf9f622e_1.tar.b
 https://repo.continuum.io/pkgs/main/linux-64/python-3.6.4-hc3d631a_0.tar.bz2
 https://conda.anaconda.org/pytorch/linux-64/pytorch-0.3.0-py36_cuda8.0.61_cudnn7.0.3h37a80b5_4.tar.bz2
 https://repo.continuum.io/pkgs/main/linux-64/readline-7.0-ha6073c6_4.tar.bz2
+https://repo.continuum.io/pkgs/main/linux-64/scipy-1.0.0-py36hbf646e7_0.tar.bz2
 https://repo.continuum.io/pkgs/main/linux-64/setuptools-36.5.0-py36he42e2e1_0.tar.bz2
 https://repo.continuum.io/pkgs/main/linux-64/six-1.11.0-py36h372c433_1.tar.bz2
 https://repo.continuum.io/pkgs/main/linux-64/sqlite-3.20.1-hb898158_2.tar.bz2
