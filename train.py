@@ -30,7 +30,7 @@ parser.add_argument('--gpu', default=0, type=int)
 parser.add_argument("--dataset",type=str,default="mnist")   # mnist, cifar10
 parser.add_argument("--log_dir", default="logs", type=str)
 parser.add_argument("--model_dir", default="epochs", type=str)
-parser.add_argument("--starting_epoch", default=0, type=int)
+parser.add_argument("--starting_epoch", default=-1, type=int)
 parser.add_argument("--tracking_enabled", default=0, type=int)
 parser.add_argument("--max_epochs", default=500, type=int)
 parser.add_argument("--num_classes", default=10, type=int)
@@ -104,7 +104,8 @@ reconstruction_logger = VisdomLogger('image', opts={'title': 'Reconstruction\n'}
 
 
 def on_start(state):
-     state['epoch'] = args.starting_epoch + 1
+    if args.starting_epoch != -1:
+        state['epoch'] = args.starting_epoch + 1
 
 def on_sample(state):
     state['sample'].append(state['train'])
