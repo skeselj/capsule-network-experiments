@@ -25,11 +25,11 @@ parser.add_argument("--batch_size_growth", default=0, type=float)
 parser.add_argument("--num_routing_iterations", default=3, type=int)
 # other parameters
 parser.add_argument('--gpu', default=0, type=int)
-parser.add_argument("--dataset",type=str,default="cifar10")   # mnist, cifar10
+parser.add_argument("--dataset",type=str,default="mnist")   # mnist, cifar10
 parser.add_argument("--log_dir", default="logs", type=str)
 parser.add_argument("--model_dir", default="epochs", type=str)
 parser.add_argument("--starting_epoch", default=0, type=int)
-parser.add_argument("--tracking_enabled", default=0, type=int)
+parser.add_argument("--tracking_enabled", default=1, type=int)
 parser.add_argument("--max_epochs", default=50, type=int)
 parser.add_argument("--num_classes", default=10, type=int)
 args = parser.parse_args()
@@ -67,16 +67,14 @@ if not starting_fresh and args.tracking_enabled:
 os.environ['CUDA_VISIBLE_DEVICES'] = str(args.gpu)
 if args.dataset == 'mnist':
     img_channels = 1
-    magic_number = 6
-    width = 28
+    img_width = 28
 elif args.dataset == 'cifar10':
     img_channels = 3
-    magic_number = 8
-    width = 32
+    img_width = 32
 
 ### model and its loss
 from model import CapsuleLayer, CapsuleNet, CapsuleLoss
-model = CapsuleNet(img_channels, args.num_classes, args.num_routing_iterations, magic_number, width)
+model = CapsuleNet(img_channels, args.num_classes, args.num_routing_iterations, img_width)
 if not starting_fresh:
     print("Loading " + model_path)
     model.load_state_dict(torch.load(model_path +'/epoch_%d.pt' % args.starting_epoch))
