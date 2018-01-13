@@ -33,13 +33,15 @@ def augmentation(x, max_shift=2):
     return shifted_image.float()
     
                                               
-from torchvision.datasets.mnist import MNIST
+from torchvision.datasets.mnist import MNIST, FashionMNIST
 from torchvision.datasets.cifar import CIFAR10
 import torchvision.transforms as transforms
 
 def get_iterator(dataset_name, mode, batch_size=100):
     if dataset_name == "mnist":
-        dataset = MNIST(root='./data/mnist', download=True, train=mode)
+        dataset = MNIST(root='./data/mnist', download=True, train=mode),
+    elif dataset_name == "fashion":
+        dataset = FashionMNIST(root='./data/fashion', download=True, train=mode)
     elif dataset_name == "cifar10":
         #transform = transforms.Compose([transforms.ToTensor(),\
         #                                transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
