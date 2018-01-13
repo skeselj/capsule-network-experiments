@@ -20,24 +20,24 @@ import os
 import argparse
 parser = argparse.ArgumentParser()
 # hyperparameters
-parser.add_argument("--batch_size_init", default=100, type=int)
-parser.add_argument("--batch_size_growth", default=0, type=float)
+parser.add_argument("--batch_size", default=100, type=int)
 parser.add_argument("--num_routing_iterations", default=3, type=int)
+parser.add_argument("--lr_init", default=0.001, type=float)
+parser.add_argument("--lr_decay", default=0, type=float)
+parser.add_argument("--momentum", default=0.9, type=float)
 # other parameters
 parser.add_argument('--gpu', default=0, type=int)
 parser.add_argument("--dataset",type=str,default="mnist")   # mnist, cifar10
 parser.add_argument("--log_dir", default="logs", type=str)
 parser.add_argument("--model_dir", default="epochs", type=str)
 parser.add_argument("--starting_epoch", default=0, type=int)
-parser.add_argument("--tracking_enabled", default=1, type=int)
-parser.add_argument("--max_epochs", default=50, type=int)
+parser.add_argument("--tracking_enabled", default=0, type=int)
+parser.add_argument("--max_epochs", default=500, type=int)
 parser.add_argument("--num_classes", default=10, type=int)
 args = parser.parse_args()
 
 # figure out names and if we're staring fresh
-name = "bi-" + str(args.batch_size_init) + "_" + \
-       "bg-" + "{0:.4f}".format(args.batch_size_growth) + "_" + \
-       "nr-"+ str(args.num_routing_iterations)
+name = "nr-"+ str(args.num_routing_iterations)
 model_path = args.model_dir + "/" + args.dataset + "/" + name
 log_path = args.log_dir + "/" + args.dataset + "/" + name
 starting_fresh = not os.path.exists(model_path +'/epoch_%d.pt' % args.starting_epoch)
@@ -58,8 +58,7 @@ if args.log_dir != '' and starting_fresh:
 if not starting_fresh and args.tracking_enabled:
     text_logger = VisdomTextLogger()
     text_logger.log("dataset: " + "________________ " + str(args.dataset) + " " \
-                    "batch_init: "  + "________________ " + str(args.batch_size_init) + " "\
-                    "batch_growth: " + "_______________ " + str(args.batch_size_growth) + " "\
+                    "batch_size: "  + "________________ " + str(args.batch_size) + " "\
                     "num_routing_iterations " + "________ " + str(args.num_routing_iterations) + " "\
                     "starting_epcoh " + "_____________ " + str(args.starting_epoch))
 
@@ -80,7 +79,8 @@ if not starting_fresh:
     model.load_state_dict(torch.load(model_path +'/epoch_%d.pt' % args.starting_epoch))
 model.cuda()
 capsule_loss = CapsuleLoss()
-optimizer = Adam(model.parameters())
+optimizer = Adam(model.parameters(), \
+                 lr=args.lr_init, betas=(args.momentum, 0.999), eps=1e-8, weight_decay=args.lr_decay)
 
 ### wrappers for metrics (loss, accuracy, confusion)
 meter_loss = tnt.meter.AverageValueMeter()
@@ -133,7 +133,7 @@ def on_end_epoch(state):
         train_error_logger.log(state['epoch'], meter_accuracy.value()[0])
     reset_meters()
     # test
-    engine.test(processor, get_iterator(args.dataset, False, args.batch_size_init))
+    engine.test(processor, get_iterator(args.dataset, False, args.batch_size))
     msg = '[Epoch %d] Testing Loss: %.4f (Accuracy: %.2f%%)' % (
         state['epoch'], meter_loss.value()[0], meter_accuracy.value()[0])
     if args.tracking_enabled:
@@ -148,9 +148,9 @@ def on_end_epoch(state):
             ground_truth = test_sample[0].permute(0, 3, 1, 2).float() / 255.0
         _, reconstructions = model(Variable(ground_truth).cuda())
         reconstruction = reconstructions.cpu().view_as(ground_truth).data
-        ground_truth_logger.log(make_grid(ground_truth, nrow=int(args.batch_size_init ** 0.5),
+        ground_truth_logger.log(make_grid(ground_truth, nrow=int(args.batch_size ** 0.5),
                                           normalize=True, range=(0, 1)).numpy())
-        reconstruction_logger.log(make_grid(reconstruction, nrow=int(args.batch_size_init ** 0.5),
+        reconstruction_logger.log(make_grid(reconstruction, nrow=int(args.batch_size ** 0.5),
                                             normalize=True, range=(0, 1)).numpy())
     if args.log_dir != '':
         f = open(log_path + '/test.txt','a')
