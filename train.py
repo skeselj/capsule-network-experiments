@@ -27,20 +27,20 @@ parser.add_argument("--lr_decay", default=0, type=float)
 parser.add_argument("--momentum", default=0.9, type=float)
 # other parameters
 parser.add_argument('--gpu', default=0, type=int)
-parser.add_argument("--dataset",type=str,default="mnist")   # mnist, cifar10
+parser.add_argument("--dataset",type=str,default="mnist")   # mnist, cifar10, fashion
 parser.add_argument("--log_dir", default="logs", type=str)
 parser.add_argument("--model_dir", default="epochs", type=str)
-parser.add_argument("--starting_epoch", type=int)
-parser.add_argument("--tracking_enabled", default=0, type=int)
+parser.add_argument("-l", "--loading_epoch", type=int, help="Last saved parameters for resuming training")
+parser.add_argument("-t", "--track", action="store_true")
 parser.add_argument("--max_epochs", default=500, type=int)
 parser.add_argument("--num_classes", default=10, type=int)
 args = parser.parse_args()
 
 # figure out names and if we're staring fresh
 name = "nr-"+ str(args.num_routing_iterations)
-model_path = args.model_dir + "/" + args.dataset + "/" + name
-log_path = args.log_dir + "/" + args.dataset + "/" + name
-starting_fresh = True #not os.path.exists(model_path +'/epoch_%d.pt' % args.starting_epoch)
+model_path = os.path.join(args.model_dir, args.dataset, name)
+log_path = os.path.join(args.log_dir, args.dataset, name)
+starting_fresh = args.loading_epoch == None
 
 # setup dirs if not created
 if args.model_dir != '':  
@@ -55,16 +55,16 @@ if args.log_dir != '' and starting_fresh:
     f.close()
 
 # print info about this run to visdom
-if args.tracking_enabled:
+if not starting_fresh and args.track:
     text_logger = VisdomTextLogger()
     text_logger.log("dataset: " + "________________ " + str(args.dataset) + " " \
                     "batch_size: "  + "________________ " + str(args.batch_size) + " "\
                     "num_routing_iterations " + "________ " + str(args.num_routing_iterations) + " "\
-                    "starting_epoch " + "_____________ " + str(args.starting_epoch))
+                    "loading_epoch " + "_____________ " + str(args.loading_epoch))
 
 # gpu and dataset
 os.environ['CUDA_VISIBLE_DEVICES'] = str(args.gpu)
-if args.dataset == 'mnist':
+if args.dataset in ['mnist', 'fashion']:
     img_channels = 1
     img_width = 28
 elif args.dataset == 'cifar10':
@@ -76,7 +76,7 @@ from model import CapsuleLayer, CapsuleNet, CapsuleLoss
 model = CapsuleNet(img_channels, args.num_classes, args.num_routing_iterations, img_width)
 if not starting_fresh:
     print("Loading " + model_path)
-    model.load_state_dict(torch.load(model_path +'/epoch_%d.pt' % args.starting_epoch))
+    model.load_state_dict(torch.load(model_path +'/epoch_%d.pt' % args.loading_epoch))
 model.cuda()
 capsule_loss = CapsuleLoss()
 optimizer = Adam(model.parameters(), \
@@ -91,7 +91,7 @@ def reset_meters():
     meter_loss.reset()
     confusion_meter.reset()
     
-### show logs in visdom and log them if tracking_enabled
+### show logs in visdom and log them if track
 train_loss_logger = VisdomPlotLogger('line', opts={'title': 'Train Loss'})
 train_error_logger = VisdomPlotLogger('line', opts={'title': 'Train Accuracy'})
 test_loss_logger = VisdomPlotLogger('line', opts={'title': 'Test Loss'})
@@ -105,15 +105,15 @@ perterbation_logger = VisdomLogger('image', opts={'title': 'Perterbations\n'})
 
 
 def on_start(state):
-    if args.starting_epoch != None:
-        state['epoch'] = args.starting_epoch + 1
+    if args.loading_epoch is not None:
+        state['epoch'] = args.loading_epoch
 
 def on_sample(state):
     state['sample'].append(state['train'])
     
 def on_start_epoch(state):
     reset_meters()
-    if args.tracking_enabled:
+    if args.track:
         state['iterator'] = tqdm(state['iterator'])
 
 def on_forward(state):
@@ -129,7 +129,7 @@ def on_end_epoch(state):
         f = open(log_path + '/train.txt','a')
         f.write(msg + "\n")
         f.close()
-    if args.tracking_enabled:
+    if args.track:
         print(msg)
         train_loss_logger.log(state['epoch'], meter_loss.value()[0])
         train_error_logger.log(state['epoch'], meter_accuracy.value()[0])
@@ -138,13 +138,14 @@ def on_end_epoch(state):
     engine.test(processor, get_iterator(args.dataset, False, args.batch_size))
     msg = '[Epoch %d] Testing Loss: %.4f (Accuracy: %.2f%%)' % (
         state['epoch'], meter_loss.value()[0], meter_accuracy.value()[0])
-    if args.tracking_enabled:
+    if args.track:
+        print(msg)
         test_loss_logger.log(state['epoch'], meter_loss.value()[0])
         test_accuracy_logger.log(state['epoch'], meter_accuracy.value()[0])
         confusion_logger.log(confusion_meter.value())
         # reconstructions
         test_sample = next(iter(get_iterator(args.dataset,False)))  # False sets value of train mode
-        if args.dataset == 'mnist':
+        if args.dataset in ['mnist', 'fashion']:
             ground_truth = test_sample[0].unsqueeze(1).float() / 255.0
         elif args.dataset == 'cifar10':
             ground_truth = test_sample[0].permute(0, 3, 1, 2).float() / 255.0
@@ -178,7 +179,7 @@ from utils import augmentation, get_iterator
 
 def processor(sample):
     data, labels, training = sample
-    if args.dataset == 'mnist':
+    if args.dataset in ['mnist', 'fashion']:
         data = data.unsqueeze(1)
     elif args.dataset == 'cifar10':
         data = data.permute(0, 3, 1, 2)
