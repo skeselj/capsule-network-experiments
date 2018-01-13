@@ -34,6 +34,7 @@ def augmentation(x, max_shift=2):
     
                                               
 from torchvision.datasets.mnist import MNIST
+from torchvision.datasets.mnist import FashionMNIST
 from torchvision.datasets.cifar import CIFAR10
 import torchvision.transforms as transforms
 

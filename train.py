@@ -30,7 +30,7 @@ parser.add_argument('--gpu', default=0, type=int)
 parser.add_argument("--dataset",type=str,default="mnist")   # mnist, cifar10
 parser.add_argument("--log_dir", default="logs", type=str)
 parser.add_argument("--model_dir", default="epochs", type=str)
-parser.add_argument("--starting_epoch", default=-1, type=int)
+parser.add_argument("--starting_epoch", type=int)
 parser.add_argument("--tracking_enabled", default=0, type=int)
 parser.add_argument("--max_epochs", default=500, type=int)
 parser.add_argument("--num_classes", default=10, type=int)
@@ -40,7 +40,7 @@ args = parser.parse_args()
 name = "nr-"+ str(args.num_routing_iterations)
 model_path = args.model_dir + "/" + args.dataset + "/" + name
 log_path = args.log_dir + "/" + args.dataset + "/" + name
-starting_fresh = not os.path.exists(model_path +'/epoch_%d.pt' % args.starting_epoch)
+starting_fresh = True #not os.path.exists(model_path +'/epoch_%d.pt' % args.starting_epoch)
 
 # setup dirs if not created
 if args.model_dir != '':  
@@ -55,12 +55,12 @@ if args.log_dir != '' and starting_fresh:
     f.close()
 
 # print info about this run to visdom
-if not starting_fresh and args.tracking_enabled:
+if args.tracking_enabled:
     text_logger = VisdomTextLogger()
     text_logger.log("dataset: " + "________________ " + str(args.dataset) + " " \
                     "batch_size: "  + "________________ " + str(args.batch_size) + " "\
                     "num_routing_iterations " + "________ " + str(args.num_routing_iterations) + " "\
-                    "starting_epcoh " + "_____________ " + str(args.starting_epoch))
+                    "starting_epoch " + "_____________ " + str(args.starting_epoch))
 
 # gpu and dataset
 os.environ['CUDA_VISIBLE_DEVICES'] = str(args.gpu)
@@ -101,10 +101,11 @@ confusion_logger = VisdomLogger('heatmap', opts={'title': 'Confusion matrix',
                                                  'rownames': list(range(args.num_classes))})
 ground_truth_logger = VisdomLogger('image', opts={'title': 'Ground Truth'})
 reconstruction_logger = VisdomLogger('image', opts={'title': 'Reconstruction\n'})
+perterbation_logger = VisdomLogger('image', opts={'title': 'Perterbations\n'})
 
 
 def on_start(state):
-    if args.starting_epoch != -1:
+    if args.starting_epoch != None:
         state['epoch'] = args.starting_epoch + 1
 
 def on_sample(state):
@@ -147,18 +148,20 @@ def on_end_epoch(state):
             ground_truth = test_sample[0].unsqueeze(1).float() / 255.0
         elif args.dataset == 'cifar10':
             ground_truth = test_sample[0].permute(0, 3, 1, 2).float() / 255.0
-        _, reconstructions = model(Variable(ground_truth).cuda())
+        classes, reconstructions, embeddings = model(Variable(ground_truth).cuda())
         reconstruction = reconstructions.cpu().view_as(ground_truth).data
         ground_truth_logger.log(make_grid(ground_truth, nrow=int(args.batch_size ** 0.5),
                                           normalize=True, range=(0, 1)).numpy())
         reconstruction_logger.log(make_grid(reconstruction, nrow=int(args.batch_size ** 0.5),
                                             normalize=True, range=(0, 1)).numpy())
+        # perterbations
+        print("here")
+        print(embeddings.size())
     if args.log_dir != '':
         f = open(log_path + '/test.txt','a')
         f.write(msg + "\n")
         f.close()
 
-    
     torch.save(model.state_dict(), model_path +'/epoch_%d.pt' % state['epoch'])
 
 
@@ -185,9 +188,9 @@ def processor(sample):
     data = Variable(data).cuda()
     labels = Variable(labels).cuda()
     if training:
-        classes, reconstructions = model(data, labels)
+        classes, reconstructions, _ = model(data, labels)
     else:
-        classes, reconstructions = model(data)
+        classes, reconstructions, _ = model(data)
     loss = capsule_loss(data, labels, classes, reconstructions)
     return loss, classes
 

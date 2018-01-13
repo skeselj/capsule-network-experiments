@@ -85,7 +85,7 @@ class CapsuleNet(nn.Module):
             y = Variable(torch.sparse.torch.eye(self.num_classes)).cuda().index_select(dim=0, \
                                                 index=Variable(max_length_indices.data))
         reconstructions = self.decoder((x * y[:, :, None]).view(x.size(0), -1))
-        return classes, reconstructions
+        return classes, reconstructions, x
 
 
 class CapsuleLoss(nn.Module):
