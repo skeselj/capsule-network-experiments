@@ -15,6 +15,8 @@ from torchnet.engine import Engine
 from torchnet.logger import VisdomPlotLogger, VisdomLogger, VisdomTextLogger
 from tqdm import tqdm
 
+from tensorboardX import SummaryWriter
+
 import sys
 import os
 import argparse
@@ -28,12 +30,12 @@ parser.add_argument("--momentum", default=0.9, type=float)
 # other parameters
 parser.add_argument('--gpu', default=0, type=int)
 parser.add_argument("--dataset", type=str, default="mnist", help="mnist, cifar10, fashion, svhn")
-parser.add_argument("--log_dir", default="logs", type=str)
-parser.add_argument("--model_dir", default="epochs", type=str)
+parser.add_argument("--log_dir", default="logs")
+parser.add_argument("--model_dir", default="epochs")
+parser.add_argument("--tb_dir", default="tb")
 parser.add_argument("-l", "--loading_epoch", type=int, help="Last saved parameters for resuming training")
 parser.add_argument("-t", "--track", action="store_true")
 parser.add_argument("--max_epochs", default=500, type=int)
-parser.add_argument("--num_classes", default=10, type=int)
 parser.add_argument("--visdom_port", type=int)
 args = parser.parse_args()
 
@@ -41,17 +43,21 @@ args = parser.parse_args()
 name = "nr-"+ str(args.num_routing_iterations)
 model_path = os.path.join(args.model_dir, args.dataset, name)
 log_path = os.path.join(args.log_dir, args.dataset, name)
+tb_path = os.path.join(args.tb_dir, args.dataset, name)
 starting_fresh = args.loading_epoch == None
 if args.track:
     assert args.visdom_port is not None
+    writer = SummaryWriter(tb_path)
+    writer.add_text("hyperparameters/batch_size", str(args.batch_size))
+    writer.add_text("hyperparameters/lr_init", str(args.lr_init))
+    writer.add_text("hyperparameters/lr_decay", str(args.lr_decay))
+    writer.add_text("hyperparameters/momentum", str(args.momentum))
 
 # setup dirs if not created
-if args.model_dir != '':  
-    if not os.path.exists(model_path):
-        os.makedirs(model_path)   
+if args.model_dir != '':
+    os.makedirs(model_path, exist_ok=True)
 if args.log_dir != '' and starting_fresh: 
-    if not os.path.exists(log_path):
-        os.makedirs(log_path)
+    os.makedirs(log_path, exist_ok=True)
     f = open(log_path + '/train.txt','w')
     f.close()
     f = open(log_path + '/test.txt','w')
@@ -76,9 +82,17 @@ elif args.dataset in ['cifar10', 'svhn']:
 else:
     raise ValueError
 
+def classes(dataset):
+    if dataset in ['mnist', 'fashion', 'cifar10', 'svhn']:
+        return 10
+    else:
+        raise ValueError
+
+num_classes = classes(args.dataset)
+
 ### model and its loss
 from model import CapsuleLayer, CapsuleNet, CapsuleLoss
-model = CapsuleNet(img_channels, args.num_classes, args.num_routing_iterations, img_width)
+model = CapsuleNet(img_channels, num_classes, args.num_routing_iterations, img_width)
 if not starting_fresh:
     print("Loading " + model_path)
     model.load_state_dict(torch.load(model_path +'/epoch_%d.pt' % args.loading_epoch))
@@ -90,7 +104,7 @@ optimizer = Adam(model.parameters(), \
 ### wrappers for metrics (loss, accuracy, confusion)
 meter_loss = tnt.meter.AverageValueMeter()
 meter_accuracy = tnt.meter.ClassErrorMeter(accuracy=True)
-confusion_meter = tnt.meter.ConfusionMeter(args.num_classes, normalized=True)
+confusion_meter = tnt.meter.ConfusionMeter(num_classes, normalized=True)
 def reset_meters():
     meter_accuracy.reset()
     meter_loss.reset()
@@ -102,10 +116,10 @@ train_error_logger = VisdomPlotLogger('line', opts={'title': 'Train Accuracy'}, 
 test_loss_logger = VisdomPlotLogger('line', opts={'title': 'Test Loss'}, port=args.visdom_port)
 test_accuracy_logger = VisdomPlotLogger('line', opts={'title': 'Test Accuracy'}, port=args.visdom_port)
 confusion_logger = VisdomLogger('heatmap', opts={'title': 'Confusion matrix',
-                                                 'columnnames': list(range(args.num_classes)),
-                                                 'rownames': list(range(args.num_classes))})
+                                                 'columnnames': list(range(num_classes)),
+                                                 'rownames': list(range(num_classes))})
 ground_truth_logger = VisdomLogger('image', opts={'title': 'Ground Truth'}, port=args.visdom_port)
-reconstruction_logger = VisdomLogger('image', opts={'title': 'Reconstruction\n'}, port=args.visdom_port)
+reconstruction_logger = VisdomLogger('image', opts={'title': 'Reconstruction'}, port=args.visdom_port)
 perturbation_sample_logger = VisdomLogger('image', opts={'title': 'Perturbation'}, port=args.visdom_port)
 
 
@@ -137,7 +151,9 @@ def on_end_epoch(state):
     if args.track:
         print(msg)
         train_loss_logger.log(state['epoch'], meter_loss.value()[0])
+        writer.add_scalar("train/loss", meter_loss.value()[0], state['epoch'])
         train_error_logger.log(state['epoch'], meter_accuracy.value()[0])
+        writer.add_scalar("train/accuracy", meter_accuracy.value()[0], state['epoch'])
     reset_meters()
     # test
     engine.test(processor, get_iterator(args.dataset, False, args.batch_size))
@@ -146,7 +162,9 @@ def on_end_epoch(state):
     if args.track:
         print(msg)
         test_loss_logger.log(state['epoch'], meter_loss.value()[0])
+        writer.add_scalar("test/loss", meter_loss.value()[0], state['epoch'])
         test_accuracy_logger.log(state['epoch'], meter_accuracy.value()[0])
+        writer.add_scalar("test/accuracy", meter_accuracy.value()[0], state['epoch'])
         confusion_logger.log(confusion_meter.value())
         # reconstructions
         test_sample = next(iter(get_iterator(args.dataset,False)))  # False sets value of train mode
@@ -156,11 +174,16 @@ def on_end_epoch(state):
         size = list(ground_truth.size())
         size[0] = 16 * 11
         perturbation = perturbations.cpu().view(size).data
-        ground_truth_logger.log(make_grid(ground_truth, nrow=int(args.batch_size ** 0.5),
-                                          normalize=True, range=(0, 1)).numpy())
-        reconstruction_logger.log(make_grid(reconstruction, nrow=int(args.batch_size ** 0.5),
-                                            normalize=True, range=(0, 1)).numpy())
-        perturbation_sample_logger.log(make_grid(perturbation, nrow=11, normalize=True, range=(0,1)).numpy())
+
+        gt_image = make_grid(ground_truth, nrow=int(args.batch_size ** 0.5), normalize=True, range=(0, 1))
+        writer.add_image("Ground Truth", gt_image, state['epoch'])
+        ground_truth_logger.log(gt_image.numpy())
+        r_image = make_grid(reconstruction, nrow=int(args.batch_size ** 0.5), normalize=True, range=(0, 1))
+        writer.add_image("Reconstruction", r_image, state['epoch'])
+        reconstruction_logger.log(r_image.numpy())
+        p_image = make_grid(perturbation, nrow=11, normalize=True, range=(0, 1))
+        writer.add_image("Perturbation (Figure 4)", p_image, state['epoch'])
+        perturbation_sample_logger.log(p_image.numpy())
     if args.log_dir != '':
         f = open(log_path + '/test.txt','a')
         f.write(msg + "\n")
@@ -198,7 +221,7 @@ def processor(sample):
     data, labels, training = sample
     data = augmentation(process(data))
     labels = torch.LongTensor(labels)
-    labels = torch.sparse.torch.eye(args.num_classes).index_select(dim=0, index=labels)
+    labels = torch.sparse.torch.eye(num_classes).index_select(dim=0, index=labels)
     data = Variable(data).cuda()
     labels = Variable(labels).cuda()
     if training:
