@@ -101,7 +101,7 @@ confusion_logger = VisdomLogger('heatmap', opts={'title': 'Confusion matrix',
                                                  'rownames': list(range(args.num_classes))})
 ground_truth_logger = VisdomLogger('image', opts={'title': 'Ground Truth'})
 reconstruction_logger = VisdomLogger('image', opts={'title': 'Reconstruction\n'})
-perterbation_logger = VisdomLogger('image', opts={'title': 'Perterbations\n'})
+perturbation_sample_logger = VisdomLogger('image', opts={'title': 'Perturbation'})
 
 
 def on_start(state):
@@ -149,15 +149,16 @@ def on_end_epoch(state):
             ground_truth = test_sample[0].unsqueeze(1).float() / 255.0
         elif args.dataset == 'cifar10':
             ground_truth = test_sample[0].permute(0, 3, 1, 2).float() / 255.0
-        classes, reconstructions, embeddings = model(Variable(ground_truth).cuda())
+        _, reconstructions, perturbations = model(Variable(ground_truth).cuda(), perturb=True)
         reconstruction = reconstructions.cpu().view_as(ground_truth).data
+        size = list(ground_truth.size())
+        size[0] = 16 * 11
+        perturbation = perturbations.cpu().view(size).data
         ground_truth_logger.log(make_grid(ground_truth, nrow=int(args.batch_size ** 0.5),
                                           normalize=True, range=(0, 1)).numpy())
         reconstruction_logger.log(make_grid(reconstruction, nrow=int(args.batch_size ** 0.5),
                                             normalize=True, range=(0, 1)).numpy())
-        # perterbations
-        print("here")
-        print(embeddings.size())
+        perturbation_sample_logger.log(make_grid(perturbation, nrow=11, normalize=True, range=(0,1)).numpy())
     if args.log_dir != '':
         f = open(log_path + '/test.txt','a')
         f.write(msg + "\n")
