@@ -34,6 +34,7 @@ parser.add_argument("-l", "--loading_epoch", type=int, help="Last saved paramete
 parser.add_argument("-t", "--track", action="store_true")
 parser.add_argument("--max_epochs", default=500, type=int)
 parser.add_argument("--num_classes", default=10, type=int)
+parser.add_argument("--visdom_port", default=8010, type=int)
 args = parser.parse_args()
 
 # figure out names and if we're staring fresh
@@ -56,7 +57,7 @@ if args.log_dir != '' and starting_fresh:
 
 # print info about this run to visdom
 if not starting_fresh and args.track:
-    text_logger = VisdomTextLogger()
+    text_logger = VisdomTextLogger(port=args.visdom_port)
     text_logger.log("dataset: " + "________________ " + str(args.dataset) + " " \
                     "batch_size: "  + "________________ " + str(args.batch_size) + " "\
                     "num_routing_iterations " + "________ " + str(args.num_routing_iterations) + " "\
@@ -92,16 +93,16 @@ def reset_meters():
     confusion_meter.reset()
     
 ### show logs in visdom and log them if track
-train_loss_logger = VisdomPlotLogger('line', opts={'title': 'Train Loss'})
-train_error_logger = VisdomPlotLogger('line', opts={'title': 'Train Accuracy'})
-test_loss_logger = VisdomPlotLogger('line', opts={'title': 'Test Loss'})
-test_accuracy_logger = VisdomPlotLogger('line', opts={'title': 'Test Accuracy'})
+train_loss_logger = VisdomPlotLogger('line', opts={'title': 'Train Loss'}, port=args.visdom_port)
+train_error_logger = VisdomPlotLogger('line', opts={'title': 'Train Accuracy'}, port=args.visdom_port)
+test_loss_logger = VisdomPlotLogger('line', opts={'title': 'Test Loss'}, port=args.visdom_port)
+test_accuracy_logger = VisdomPlotLogger('line', opts={'title': 'Test Accuracy'}, port=args.visdom_port)
 confusion_logger = VisdomLogger('heatmap', opts={'title': 'Confusion matrix',
                                                  'columnnames': list(range(args.num_classes)),
                                                  'rownames': list(range(args.num_classes))})
-ground_truth_logger = VisdomLogger('image', opts={'title': 'Ground Truth'})
-reconstruction_logger = VisdomLogger('image', opts={'title': 'Reconstruction\n'})
-perturbation_sample_logger = VisdomLogger('image', opts={'title': 'Perturbation'})
+ground_truth_logger = VisdomLogger('image', opts={'title': 'Ground Truth'}, port=args.visdom_port)
+reconstruction_logger = VisdomLogger('image', opts={'title': 'Reconstruction\n'}, port=args.visdom_port)
+perturbation_sample_logger = VisdomLogger('image', opts={'title': 'Perturbation'}, port=args.visdom_port)
 
 
 def on_start(state):
