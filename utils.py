@@ -33,8 +33,7 @@ def augmentation(x, max_shift=2):
     return shifted_image.float()
     
                                               
-from torchvision.datasets.mnist import MNIST, FashionMNIST
-from torchvision.datasets.cifar import CIFAR10
+from torchvision.datasets import MNIST, FashionMNIST, CIFAR10, SVHN
 import torchvision.transforms as transforms
 
 def get_iterator(dataset_name, mode, batch_size=100):
@@ -46,8 +45,18 @@ def get_iterator(dataset_name, mode, batch_size=100):
         #transform = transforms.Compose([transforms.ToTensor(),\
         #                                transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
         dataset = CIFAR10(root="./data/cifar10",download=True,train=mode)#, transform=transform)
-    data = getattr(dataset, 'train_data' if mode else 'test_data')
-    labels = getattr(dataset, 'train_labels' if mode else 'test_labels')
+    elif dataset_name == "svhn":
+        dataset = SVHN(root="./data/svhn", download=True, split=("train" if mode else "test"))
+    else:
+        raise ValueError
+    if dataset_name in ["mnist", "fashion", "cifar10"]:
+        data = getattr(dataset, 'train_data' if mode else 'test_data')
+        labels = getattr(dataset, 'train_labels' if mode else 'test_labels')
+    elif dataset_name == "svhn":
+        data = dataset.data
+        labels = dataset.labels
+    else:
+        raise ValueError
     tensor_dataset = tnt.dataset.TensorDataset([data, labels])
     
     return tensor_dataset.parallel(batch_size=batch_size, num_workers=4, shuffle=mode)

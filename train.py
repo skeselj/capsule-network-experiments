@@ -27,14 +27,14 @@ parser.add_argument("--lr_decay", default=0, type=float)
 parser.add_argument("--momentum", default=0.9, type=float)
 # other parameters
 parser.add_argument('--gpu', default=0, type=int)
-parser.add_argument("--dataset",type=str,default="mnist")   # mnist, cifar10, fashion
+parser.add_argument("--dataset", type=str, default="mnist", help="mnist, cifar10, fashion, svhn")
 parser.add_argument("--log_dir", default="logs", type=str)
 parser.add_argument("--model_dir", default="epochs", type=str)
 parser.add_argument("-l", "--loading_epoch", type=int, help="Last saved parameters for resuming training")
 parser.add_argument("-t", "--track", action="store_true")
 parser.add_argument("--max_epochs", default=500, type=int)
 parser.add_argument("--num_classes", default=10, type=int)
-parser.add_argument("--visdom_port", default=8010, type=int)
+parser.add_argument("--visdom_port", type=int)
 args = parser.parse_args()
 
 # figure out names and if we're staring fresh
@@ -42,6 +42,8 @@ name = "nr-"+ str(args.num_routing_iterations)
 model_path = os.path.join(args.model_dir, args.dataset, name)
 log_path = os.path.join(args.log_dir, args.dataset, name)
 starting_fresh = args.loading_epoch == None
+if args.track:
+    assert args.visdom_port is not None
 
 # setup dirs if not created
 if args.model_dir != '':  
@@ -68,9 +70,11 @@ os.environ['CUDA_VISIBLE_DEVICES'] = str(args.gpu)
 if args.dataset in ['mnist', 'fashion']:
     img_channels = 1
     img_width = 28
-elif args.dataset == 'cifar10':
+elif args.dataset in ['cifar10', 'svhn']:
     img_channels = 3
     img_width = 32
+else:
+    raise ValueError
 
 ### model and its loss
 from model import CapsuleLayer, CapsuleNet, CapsuleLoss
@@ -146,10 +150,7 @@ def on_end_epoch(state):
         confusion_logger.log(confusion_meter.value())
         # reconstructions
         test_sample = next(iter(get_iterator(args.dataset,False)))  # False sets value of train mode
-        if args.dataset in ['mnist', 'fashion']:
-            ground_truth = test_sample[0].unsqueeze(1).float() / 255.0
-        elif args.dataset == 'cifar10':
-            ground_truth = test_sample[0].permute(0, 3, 1, 2).float() / 255.0
+        ground_truth = process(test_sample, True)
         _, reconstructions, perturbations = model(Variable(ground_truth).cuda(), perturb=True)
         reconstruction = reconstructions.cpu().view_as(ground_truth).data
         size = list(ground_truth.size())
@@ -180,13 +181,22 @@ engine.hooks['on_end_epoch'] = on_end_epoch
 
 from utils import augmentation, get_iterator
 
-def processor(sample):
-    data, labels, training = sample
+def process(data, sample=False):
+    if sample:
+        data = data[0]
     if args.dataset in ['mnist', 'fashion']:
         data = data.unsqueeze(1)
     elif args.dataset == 'cifar10':
         data = data.permute(0, 3, 1, 2)
-    data = augmentation(data.float() / 255.0)
+    elif args.dataset == 'svhn':
+        pass # explicit
+    else:
+        raise ValueError
+    return data.float() / 255.0
+
+def processor(sample):
+    data, labels, training = sample
+    data = augmentation(process(data))
     labels = torch.LongTensor(labels)
     labels = torch.sparse.torch.eye(args.num_classes).index_select(dim=0, index=labels)
     data = Variable(data).cuda()
