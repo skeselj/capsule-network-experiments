@@ -39,7 +39,7 @@ import torchvision.transforms as transforms
 
 def get_iterator(dataset_name, mode, batch_size=100):
     if dataset_name == "mnist":
-        dataset = MNIST(root='./data/mnist', download=True, train=mode),
+        dataset = MNIST(root='./data/mnist', download=True, train=mode)
     elif dataset_name == "fashion":
         dataset = FashionMNIST(root='./data/fashion', download=True, train=mode)
     elif dataset_name == "cifar10":

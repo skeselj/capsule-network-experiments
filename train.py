@@ -190,9 +190,9 @@ def processor(sample):
     data = Variable(data).cuda()
     labels = Variable(labels).cuda()
     if training:
-        classes, reconstructions, _ = model(data, labels)
+        classes, reconstructions = model(data, labels)
     else:
-        classes, reconstructions, _ = model(data)
+        classes, reconstructions = model(data)
     loss = capsule_loss(data, labels, classes, reconstructions)
     return loss, classes
 

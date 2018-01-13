@@ -89,7 +89,7 @@ class CapsuleNet(nn.Module):
             y_was_none = False
         reconstructions = self.decoder((x * y[:, :, None]).view(x.size(0), -1))
         ret = [classes, reconstructions]
-
+            
         if y_was_none and perturb:
             r = torch.arange(-5, 6, 1)/20 # -0.25,-0.20,...,0.25
             index = max_length_indices.data[0]
