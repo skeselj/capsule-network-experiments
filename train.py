@@ -16,6 +16,7 @@ from torchnet.logger import VisdomPlotLogger, VisdomLogger, VisdomTextLogger
 from tqdm import tqdm
 
 from tensorboardX import SummaryWriter
+from datetime import datetime
 
 from collections import defaultdict
 import sys
@@ -49,7 +50,8 @@ if args.tag is not None:
     name += "-" + args.tag
 model_path = os.path.join(args.model_dir, args.dataset, name)
 log_path = os.path.join(args.log_dir, args.dataset, name)
-tb_path = os.path.join(args.tb_dir, args.dataset, name)
+tb_path = os.path.join(args.tb_dir, args.dataset, name, datetime.now().isoformat(timespec="seconds").replace(":", "-"))
+visdom_env = args.dataset + "-" + name
 starting_fresh = args.loading_epoch == None
 if args.track:
     assert args.visdom_port is not None
@@ -62,7 +64,7 @@ if args.track:
 # setup dirs if not created
 if args.model_dir != '':
     os.makedirs(model_path, exist_ok=True)
-if args.log_dir != '' and starting_fresh: 
+if args.log_dir != '' and starting_fresh:
     os.makedirs(log_path, exist_ok=True)
     f = open(log_path + '/train.txt','w')
     f.close()
@@ -117,18 +119,18 @@ def reset_meters():
     confusion_meter.reset()
     
 ### show logs in visdom and log them if track
-train_loss_logger = VisdomPlotLogger('line', opts={'title': 'Train Loss'}, port=args.visdom_port)
-train_error_logger = VisdomPlotLogger('line', opts={'title': 'Train Accuracy'}, port=args.visdom_port)
-test_loss_logger = VisdomPlotLogger('line', opts={'title': 'Test Loss'}, port=args.visdom_port)
-test_accuracy_logger = VisdomPlotLogger('line', opts={'title': 'Test Accuracy'}, port=args.visdom_port)
-confusion_logger = VisdomLogger('heatmap', opts={'title': 'Confusion matrix',
+train_loss_logger = VisdomPlotLogger('line', env=visdom_env, opts={'title': 'Train Loss'}, port=args.visdom_port)
+train_error_logger = VisdomPlotLogger('line', env=visdom_env, opts={'title': 'Train Accuracy'}, port=args.visdom_port)
+test_loss_logger = VisdomPlotLogger('line', env=visdom_env, opts={'title': 'Test Loss'}, port=args.visdom_port)
+test_accuracy_logger = VisdomPlotLogger('line', env=visdom_env, opts={'title': 'Test Accuracy'}, port=args.visdom_port)
+confusion_logger = VisdomLogger('heatmap', env=visdom_env, opts={'title': 'Confusion matrix',
                                                  'columnnames': list(range(num_classes)),
                                                  'rownames': list(range(num_classes))})
-ground_truth_logger = VisdomLogger('image', opts={'title': 'Ground Truth'}, port=args.visdom_port)
-reconstruction_logger = VisdomLogger('image', opts={'title': 'Reconstruction'}, port=args.visdom_port)
-perturbation_sample_logger = VisdomLogger('image', opts={'title': 'Perturbation'}, port=args.visdom_port)
+ground_truth_logger = VisdomLogger('image', env=visdom_env, opts={'title': 'Ground Truth'}, port=args.visdom_port)
+reconstruction_logger = VisdomLogger('image', env=visdom_env, opts={'title': 'Reconstruction'}, port=args.visdom_port)
+perturbation_sample_logger = VisdomLogger('image', env=visdom_env, opts={'title': 'Perturbation'}, port=args.visdom_port)
 
-all_reconstruction_logger = VisdomLogger('image', opts={'title': 'Figure 3: Reconstruction of Good/Bad Predictions'}, port=args.visdom_port)
+all_reconstruction_logger = VisdomLogger('image', env=visdom_env, opts={'title': 'Figure 3: Reconstruction of Good/Bad Predictions'}, port=args.visdom_port)
 
 def embedding(sample, all_mat, all_metadata, all_label_img):
     processed = process(sample[0])
