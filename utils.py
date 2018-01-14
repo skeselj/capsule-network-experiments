@@ -52,7 +52,7 @@ def torchify(x, verbose=False, index=None, top_call=True):
         if verbose and (index == 0 or index==None):
             print("{} of size {}".format(torch.typename(x), x.size()))
         ret = x
-    if top_call:
+    if verbose and top_call:
         print("Final result: {} of size {}".format(torch.typename(ret), ret.size()))
     return ret
 
