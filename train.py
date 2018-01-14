@@ -17,6 +17,7 @@ from tqdm import tqdm
 
 from tensorboardX import SummaryWriter
 
+from collections import defaultdict
 import sys
 import os
 import argparse
@@ -33,14 +34,19 @@ parser.add_argument("--dataset", type=str, default="mnist", help="mnist, cifar10
 parser.add_argument("--log_dir", default="logs")
 parser.add_argument("--model_dir", default="epochs")
 parser.add_argument("--tb_dir", default="tb")
+parser.add_argument("--tag")
+parser.add_argument("--transform", action="store_true", help="affinely transform data when testing")
 parser.add_argument("-l", "--loading_epoch", type=int, help="Last saved parameters for resuming training")
 parser.add_argument("-t", "--track", action="store_true")
-parser.add_argument("--max_epochs", default=500, type=int)
-parser.add_argument("--visdom_port", type=int)
+parser.add_argument("--max_epochs", default=200, type=int)
+parser.add_argument("--visdom_port", default=8097, type=int)
+parser.add_argument("--test", action="store_true")
 args = parser.parse_args()
 
 # figure out names and if we're staring fresh
 name = "nr-"+ str(args.num_routing_iterations)
+if args.tag is not None:
+    name += "-" + args.tag
 model_path = os.path.join(args.model_dir, args.dataset, name)
 log_path = os.path.join(args.log_dir, args.dataset, name)
 tb_path = os.path.join(args.tb_dir, args.dataset, name)
@@ -125,13 +131,22 @@ perturbation_sample_logger = VisdomLogger('image', opts={'title': 'Perturbation'
 good_reconstruction_logger = VisdomLogger('image', opts={'title': 'Figure 3: Reconstruction of Good Prediction'}, port=args.visdom_port)
 bad_reconstruction_logger = VisdomLogger('image', opts={'title': 'Figure 3: Reconstruction of Bad Predictions'}, port=args.visdom_port)
 
+def embedding(sample, all_mat, all_metadata, all_label_img):
+    processed = process(sample[0])
+    data = Variable(processed).cuda()
+    _, _, vecs = model(data, save_vecs=True)
+    all_metadata.append(sample[1])
+    all_label_img.append(processed.cpu())
+    for j, vec in enumerate(vecs):
+        all_mat[j].append(vec.data.cpu().view(vec.size(0), -1))
+
 def on_start(state):
     if args.loading_epoch is not None:
         state['epoch'] = args.loading_epoch
 
 def on_sample(state):
     state['sample'].append(state['train'])
-    
+
 def on_start_epoch(state):
     reset_meters()
     if args.track:
@@ -158,7 +173,7 @@ def on_end_epoch(state):
         writer.add_scalar("train/accuracy", meter_accuracy.value()[0], state['epoch'])
     reset_meters()
     # test
-    engine.test(processor, get_iterator(args.dataset, False, args.batch_size))
+    engine.test(processor, get_iterator(args.dataset, False, args.batch_size, trans=args.transform))
     msg = '[Epoch %d] Testing Loss: %.4f (Accuracy: %.2f%%)' % (
         state['epoch'], meter_loss.value()[0], meter_accuracy.value()[0])
     if args.track:
@@ -169,13 +184,41 @@ def on_end_epoch(state):
         writer.add_scalar("test/accuracy", meter_accuracy.value()[0], state['epoch'])
         confusion_logger.log(confusion_meter.value())
         # reconstructions
-        test_sample = next(iter(get_iterator(args.dataset,False)))  # False sets value of train mode
-        ground_truth = process(test_sample, True)
-        _, reconstruction, perturbations = model(Variable(ground_truth).cuda(), perturb=True)
-        reconstruction = reconstruction.cpu().view_as(ground_truth).data
-        size = list(ground_truth.size())
-        size[0] = 16 * 11
-        perturbation = perturbations.cpu().view(size).data
+        reconstruction_iter = iter(get_iterator(args.dataset, False, trans=args.transform)) # False sets value of train mode
+        all_mat = defaultdict(list)
+        all_metadata = []
+        all_label_img = []
+        for i in range(100): # Accumulate more examples for embedding
+            test_sample = next(reconstruction_iter)
+            if i == 0:
+                ground_truth = process(test_sample[0])
+                _, reconstruction, perturbations = model(Variable(ground_truth).cuda(), perturb=state['epoch']%args.batch_size)
+                reconstruction = reconstruction.cpu().view_as(ground_truth).data
+                size = list(ground_truth.size())
+                size[0] = 16 * 11
+                perturbation = perturbations.cpu().view(size).data
+            embedding(test_sample, all_mat, all_metadata, all_label_img)
+        all_metadata = torch.cat(all_metadata)
+        all_label_img = torch.cat(all_label_img)
+        for j in range(args.num_routing_iterations):
+            all_mat[j] = torch.cat(all_mat[j])
+            writer.add_embedding(
+                all_mat[j],
+                metadata=all_metadata,
+                label_img=all_label_img,
+                global_step=state['epoch']*100+j+1,
+                tag="Ep {} Iter {}".format(state['epoch'], j+1),
+            )
+        combined_mat = torch.cat([all_mat[j] for j in range(args.num_routing_iterations)])
+        combined_metadata = torch.cat([torch.ones(all_mat[j].size(0))*(j+1) for j in range(args.num_routing_iterations)])
+        combined_label_img = all_label_img.repeat(args.num_routing_iterations, 1, 1, 1)
+        writer.add_embedding(
+            combined_mat,
+            metadata=combined_metadata,
+            label_img=combined_label_img,
+            global_step=state['epoch']*100,
+            tag="Ep {} Comb".format(state['epoch']),
+        )
 
         gt_image = make_grid(ground_truth, nrow=int(args.batch_size ** 0.5), normalize=True, range=(0, 1))
         writer.add_image("Ground Truth", gt_image, state['epoch'])
@@ -214,7 +257,7 @@ def on_end_epoch(state):
                 good_samples.append(candidate)
 
             if len(bad_samples) < num_bad and true_lbl != pred_lbl:
-                bad_samples.append(candidate)   
+                bad_samples.append(candidate)
 
 
         for sample in good_samples:
@@ -227,7 +270,7 @@ def on_end_epoch(state):
             img, true_lbl, pred_lbl, all_reconstructions = sample
             bad_image = make_grid(torch.cat(ground_truth, all_reconstructions), nrow=11, normalize=True, range=(0,1))
             writer.add_image("Reconstruction (Figure 3) for Bad Prediction. True: %d. Predicted: %d" % (true_lbl, pred_lbl), bad_image, state['epoch'])
-            bad_reconstruction_logger.log(bad_image.numpy), 'hello') # modify title to include true and predicted label
+            bad_reconstruction_logger.log(bad_image.numpy(), 'hello') # modify title to include true and predicted label
            
             
 
@@ -236,7 +279,6 @@ def on_end_epoch(state):
         f.write(msg + "\n")
         f.close()
 
-    
     torch.save(model.state_dict(), model_path +'/epoch_%d.pt' % state['epoch'])
 
 
@@ -251,9 +293,7 @@ engine.hooks['on_end_epoch'] = on_end_epoch
 
 from utils import augmentation, get_iterator
 
-def process(data, sample=False):
-    if sample:
-        data = data[0]
+def process(data):
     if args.dataset in ['mnist', 'fashion']:
         data = data.unsqueeze(1)
     elif args.dataset == 'cifar10':
@@ -262,6 +302,7 @@ def process(data, sample=False):
         pass # explicit
     else:
         raise ValueError
+    assert torch.max(data) > 2 # To ensure everything needs to be scaled down
     return data.float() / 255.0
 
 def processor(sample):
@@ -278,6 +319,5 @@ def processor(sample):
     loss = capsule_loss(data, labels, classes, reconstruction)
     return loss, classes
 
-engine.train(processor, get_iterator(args.dataset, True), \
+engine.train(processor, get_iterator(args.dataset, True, test=args.test), \
              maxepoch=args.max_epochs, optimizer=optimizer)
-
