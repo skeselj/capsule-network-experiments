@@ -259,21 +259,23 @@ def on_end_epoch(state):
                 bad_samples.append(candidate)
 
         cats = []
-        for sample in good_samples:
+        for sample in good_samples + bad_samples:
             ground_truth, true_lbl, pred_lbl, all_reconstructions = sample
-            cat = torch.cat([ground_truth, all_reconstructions]).repeat(1, 3, 1, 1)
-            cat[true_lbl+1, 0] = 0
-            cat[true_lbl+1, 2] = 0
+            cat = torch.cat([ground_truth, all_reconstructions])
+            maximum = cat.max()
+            if cat.size(1) == 1:
+                cat = cat.repeat(1, 3, 1, 1)
+            cat[true_lbl+1, 1, -2:] = maximum
+            cat[true_lbl+1, 1, :2] = maximum
+            cat[true_lbl+1, 1, :, -2:] = maximum
+            cat[true_lbl+1, 1, :, :2] = maximum
+            if pred_lbl != true_lbl:
+                cat[pred_lbl+1, 0, -2:] = maximum
+                cat[pred_lbl+1, 0, :2] = maximum
+                cat[pred_lbl+1, 0, :, -2:] = maximum
+                cat[pred_lbl+1, 0, :, :2] = maximum
             cats.append(cat)
-        for sample in bad_samples:
-            ground_truth, true_lbl, pred_lbl, all_reconstructions = sample
-            cat = torch.cat([ground_truth, all_reconstructions]).repeat(1, 3, 1, 1)
-            cat[true_lbl+1, 0] = 0
-            cat[true_lbl+1, 2] = 0
-            cat[pred_lbl+1, 1] = 0
-            cat[pred_lbl+1, 2] = 0
-            cats.append(cat)
-        image = make_grid(torch.cat(cats), nrow=11, normalize=True, range=(0,1))
+        image = make_grid(torch.cat(cats), nrow=1+num_classes, normalize=True, range=(0,1))
         writer.add_image("reconstruction_all", image, state['epoch'])
         all_reconstruction_logger.log(image.numpy())
 
