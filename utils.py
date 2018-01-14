@@ -37,7 +37,6 @@ import torch.utils.data as data
 from torchvision.datasets import MNIST, FashionMNIST, CIFAR10, SVHN
 import torchvision.transforms as transforms
 import math
-from affine_helpers import *
 
 class AffinelyTransformed(data.Dataset):
     def __init__(self, dataset, seed=17724):
