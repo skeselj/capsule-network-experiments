@@ -50,7 +50,7 @@ if args.tag is not None:
     name += "-" + args.tag
 model_path = os.path.join(args.model_dir, args.dataset, name)
 log_path = os.path.join(args.log_dir, args.dataset, name)
-tb_path = os.path.join(args.tb_dir, args.dataset, name, datetime.now().isoformat(timespec="seconds").replace(":", "-"))
+tb_path = os.path.join(args.tb_dir, args.dataset, name, datetime.now().isoformat().replace(":", "-"))
 visdom_env = args.dataset + "-" + name
 starting_fresh = args.loading_epoch == None
 if args.track:
