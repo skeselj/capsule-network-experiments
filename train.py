@@ -204,8 +204,8 @@ def on_end_epoch(state):
                 all_mat[j],
                 metadata=all_metadata,
                 label_img=all_label_img,
-                global_step=state['epoch'],
-                tag="Iteration {}".format(j+1),
+                global_step=state['epoch']*100+j+1,
+                tag="Ep {} Iter {}".format(state['epoch'], j+1),
             )
         combined_mat = torch.cat([all_mat[j] for j in range(args.num_routing_iterations)])
         combined_metadata = torch.cat([torch.ones(all_mat[j].size(0))*(j+1) for j in range(args.num_routing_iterations)])
@@ -214,8 +214,8 @@ def on_end_epoch(state):
             combined_mat,
             metadata=combined_metadata,
             label_img=combined_label_img,
-            global_step=state['epoch'],
-            tag="Combined",
+            global_step=state['epoch']*100,
+            tag="Ep {} Comb".format(state['epoch']),
         )
 
         gt_image = make_grid(ground_truth, nrow=int(args.batch_size ** 0.5), normalize=True, range=(0, 1))
