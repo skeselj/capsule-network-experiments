@@ -186,11 +186,11 @@ def on_end_epoch(state):
         all_mat = defaultdict(list)
         all_metadata = []
         all_label_img = []
-        for i in range(10): # Accumulate more examples for embedding
+        for i in range(100): # Accumulate more examples for embedding
             test_sample = next(reconstruction_iter)
             if i == 0:
                 ground_truth = process(test_sample[0])
-                _, reconstructions, perturbations = model(Variable(ground_truth).cuda(), perturb=True)
+                _, reconstructions, perturbations = model(Variable(ground_truth).cuda(), perturb=state['epoch']%args.batch_size)
                 reconstruction = reconstructions.cpu().view_as(ground_truth).data
                 size = list(ground_truth.size())
                 size[0] = 16 * 11
@@ -199,14 +199,24 @@ def on_end_epoch(state):
         all_metadata = torch.cat(all_metadata)
         all_label_img = torch.cat(all_label_img)
         for j in range(args.num_routing_iterations):
-            cat = torch.cat(all_mat[j])
+            all_mat[j] = torch.cat(all_mat[j])
             writer.add_embedding(
-                cat,
+                all_mat[j],
                 metadata=all_metadata,
                 label_img=all_label_img,
                 global_step=state['epoch'],
                 tag="Iteration {}".format(j+1),
             )
+        combined_mat = torch.cat([all_mat[j] for j in range(args.num_routing_iterations)])
+        combined_metadata = torch.cat([torch.ones(all_mat[j].size(0))*(j+1) for j in range(args.num_routing_iterations)])
+        combined_label_img = all_label_img.repeat(args.num_routing_iterations, 1, 1, 1)
+        writer.add_embedding(
+            combined_mat,
+            metadata=combined_metadata,
+            label_img=combined_label_img,
+            global_step=state['epoch'],
+            tag="Combined",
+        )
 
         gt_image = make_grid(ground_truth, nrow=int(args.batch_size ** 0.5), normalize=True, range=(0, 1))
         writer.add_image("Ground Truth", gt_image, state['epoch'])

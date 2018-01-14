@@ -80,7 +80,7 @@ class CapsuleNet(nn.Module):
             nn.Sigmoid()
         )
 
-    def forward(self, x, y=None, perturb=False, save_vecs=False):
+    def forward(self, x, y=None, perturb=None, save_vecs=False):
         x = F.relu(self.conv1(x), inplace=True)
         x = self.primary_capsules(x)
         vecs = self.digit_capsules(x, save_vecs=save_vecs)
@@ -102,11 +102,11 @@ class CapsuleNet(nn.Module):
         reconstructions = self.decoder((x * y[:, :, None]).view(x.size(0), -1))
         ret = [classes, reconstructions]
 
-        if y_was_none and perturb:
+        if y_was_none and perturb is not None:
             r = torch.arange(-5, 6, 1)/20 # -0.25,-0.20,...,0.25
-            index = max_length_indices.data[0]
-            x = x[:1] # 1 x 10 x 16
-            y = y[:1] # 1 x 10
+            index = max_length_indices.data[perturb]
+            x = x[perturb:perturb+1] # 1 x 10 x 16
+            y = y[perturb:perturb+1] # 1 x 10
             vec = (x * y[:, :, None]).view(x.size(0), -1) # 1 x 160
             vec = vec.repeat(len(r) * 16, 1)
             for feature_index in range(16):
