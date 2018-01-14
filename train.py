@@ -45,7 +45,7 @@ parser.add_argument("--test", action="store_true")
 args = parser.parse_args()
 
 # figure out names and if we're staring fresh
-name = "nr-"+ str(args.num_routing_iterations) + ("_trans" if args.transform else "")
+name = "nr-"+ str(args.num_routing_iterations) + ("-trans" if args.transform else "")
 if args.tag is not None:
     name += "-" + args.tag
 model_path = os.path.join(args.model_dir, args.dataset, name)
@@ -160,8 +160,8 @@ def on_forward(state):
 
 def on_end_epoch(state):
     # train
-    msg = '[Epoch %d] Training Loss: %.4f (Accuracy: %.2f%%)' % (
-        state['epoch'], meter_loss.value()[0], meter_accuracy.value()[0])
+    msg = '[%s] [Epoch %d] Training Loss: %.4f (Accuracy: %.2f%%)' % (
+        visdom_env, state['epoch'], meter_loss.value()[0], meter_accuracy.value()[0])
     if args.log_dir != '':
         f = open(log_path + '/train.txt','a')
         f.write(msg + "\n")
@@ -175,8 +175,8 @@ def on_end_epoch(state):
     reset_meters()
     # test
     engine.test(processor, get_iterator(args.dataset, False, args.batch_size, trans=args.transform))
-    msg = '[Epoch %d] Testing Loss: %.4f (Accuracy: %.2f%%)' % (
-        state['epoch'], meter_loss.value()[0], meter_accuracy.value()[0])
+    msg = '[%s] [Epoch %d] Testing Loss: %.4f (Accuracy: %.2f%%)' % (
+        visdom_env, state['epoch'], meter_loss.value()[0], meter_accuracy.value()[0])
     if args.track:
         print(msg)
         test_loss_logger.log(state['epoch'], meter_loss.value()[0])
