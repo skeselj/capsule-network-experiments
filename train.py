@@ -240,9 +240,9 @@ def on_end_epoch(state):
             if len(good_samples) == num_good and len(bad_samples) == num_bad:
                 break
 
-            ground_truth = process(img, False)
+            ground_truth = process(img)
 
-            classes, reconstruction, all_reconstructions = model(Variable(ground_truth).cuda(), perturb=False, all_reconstructions=True)
+            classes, reconstruction, all_reconstructions = model(Variable(ground_truth).cuda(), all_reconstructions=True)
              
             # get prediction
             _, max_length_indices = classes.max(dim=1)
@@ -259,20 +259,17 @@ def on_end_epoch(state):
             if len(bad_samples) < num_bad and true_lbl != pred_lbl:
                 bad_samples.append(candidate)
 
-
         for sample in good_samples:
             img, true_lbl, pred_lbl, all_reconstructions = sample
-            good_image = make_grid(torch.cat(ground_truth, all_reconstructions), nrow=11, normalize=True, range=(0,1))
+            good_image = make_grid(torch.cat([ground_truth, all_reconstructions]), nrow=11, normalize=True, range=(0,1))
             writer.add_image("Reconstruction (Figure 3) for Good Prediction. True: %d. Predicted: %d" % (true_lbl, pred_lbl), good_image, state['epoch'])
-            good_reconstruction_logger.log(good_image.numpy(), 'hello') # modify title to include true and predicted label
+            good_reconstruction_logger.log(good_image.numpy()) # modify title to include true and predicted label
                 
         for sample in bad_samples:
             img, true_lbl, pred_lbl, all_reconstructions = sample
-            bad_image = make_grid(torch.cat(ground_truth, all_reconstructions), nrow=11, normalize=True, range=(0,1))
+            bad_image = make_grid(torch.cat([ground_truth, all_reconstructions]), nrow=11, normalize=True, range=(0,1))
             writer.add_image("Reconstruction (Figure 3) for Bad Prediction. True: %d. Predicted: %d" % (true_lbl, pred_lbl), bad_image, state['epoch'])
-            bad_reconstruction_logger.log(bad_image.numpy(), 'hello') # modify title to include true and predicted label
-           
-            
+            bad_reconstruction_logger.log(bad_image.numpy()) # modify title to include true and predicted label
 
     if args.log_dir != '':
         f = open(log_path + '/test.txt','a')
