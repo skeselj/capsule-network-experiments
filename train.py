@@ -242,9 +242,7 @@ def on_end_epoch(state):
             ground_truth = process(img)
 
             classes, reconstruction, all_reconstructions = model(Variable(ground_truth).cuda(), all_reconstructions=True)
-            
 
-            # print(reconstruction.size(), all_reconstruction.size())
             # get prediction
             _, max_length_indices = classes.max(dim=1)
             pred_lbl = max_length_indices.data[0]
