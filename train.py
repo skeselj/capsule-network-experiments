@@ -250,7 +250,7 @@ def on_end_epoch(state):
     
             # for the given image, get all reconstructions for each class 
             all_reconstructions = all_reconstructions.cpu().view(num_classes, 1, img_width, img_width).data # reconstructions: [torch.FloatTensor of size 10x1x28x28]
-            candidate = (img, true_lbl, pred_lbl, all_reconstructions)
+            candidate = (ground_truth, true_lbl, pred_lbl, all_reconstructions)
     
             # collect good samples
             if len(good_samples) < num_good and true_lbl == pred_lbl:
@@ -260,13 +260,13 @@ def on_end_epoch(state):
                 bad_samples.append(candidate)
 
         for sample in good_samples:
-            img, true_lbl, pred_lbl, all_reconstructions = sample
+            ground_truth, true_lbl, pred_lbl, all_reconstructions = sample
             good_image = make_grid(torch.cat([ground_truth, all_reconstructions]), nrow=11, normalize=True, range=(0,1))
             writer.add_image("Reconstruction (Figure 3) for Good Prediction. True: %d. Predicted: %d" % (true_lbl, pred_lbl), good_image, state['epoch'])
             good_reconstruction_logger.log(good_image.numpy()) # modify title to include true and predicted label
                 
         for sample in bad_samples:
-            img, true_lbl, pred_lbl, all_reconstructions = sample
+            ground_truth, true_lbl, pred_lbl, all_reconstructions = sample
             bad_image = make_grid(torch.cat([ground_truth, all_reconstructions]), nrow=11, normalize=True, range=(0,1))
             writer.add_image("Reconstruction (Figure 3) for Bad Prediction. True: %d. Predicted: %d" % (true_lbl, pred_lbl), bad_image, state['epoch'])
             bad_reconstruction_logger.log(bad_image.numpy()) # modify title to include true and predicted label
