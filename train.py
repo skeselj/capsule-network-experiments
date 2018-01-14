@@ -128,8 +128,7 @@ ground_truth_logger = VisdomLogger('image', opts={'title': 'Ground Truth'}, port
 reconstruction_logger = VisdomLogger('image', opts={'title': 'Reconstruction'}, port=args.visdom_port)
 perturbation_sample_logger = VisdomLogger('image', opts={'title': 'Perturbation'}, port=args.visdom_port)
 
-good_reconstruction_logger = VisdomLogger('image', opts={'title': 'Figure 3: Reconstruction of Good Prediction'}, port=args.visdom_port)
-bad_reconstruction_logger = VisdomLogger('image', opts={'title': 'Figure 3: Reconstruction of Bad Predictions'}, port=args.visdom_port)
+all_reconstruction_logger = VisdomLogger('image', opts={'title': 'Figure 3: Reconstruction of Good/Bad Predictions'}, port=args.visdom_port)
 
 def embedding(sample, all_mat, all_metadata, all_label_img):
     processed = process(sample[0])
@@ -221,17 +220,17 @@ def on_end_epoch(state):
         )
 
         gt_image = make_grid(ground_truth, nrow=int(args.batch_size ** 0.5), normalize=True, range=(0, 1))
-        writer.add_image("Ground Truth", gt_image, state['epoch'])
+        writer.add_image("groundtruth", gt_image, state['epoch'])
         ground_truth_logger.log(gt_image.numpy())
         r_image = make_grid(reconstruction, nrow=int(args.batch_size ** 0.5), normalize=True, range=(0, 1))
-        writer.add_image("Reconstruction", r_image, state['epoch'])
+        writer.add_image("reconstruction", r_image, state['epoch'])
         reconstruction_logger.log(r_image.numpy())
         p_image = make_grid(perturbation, nrow=11, normalize=True, range=(0, 1))
-        writer.add_image("Perturbation (Figure 4)", p_image, state['epoch'])
+        writer.add_image("perturbation", p_image, state['epoch'])
         perturbation_sample_logger.log(p_image.numpy())
 
         # fig 3: all reconstructions across all target classes
-        num_good, num_bad = 2, 2
+        num_good, num_bad = 1, 1
         good_samples, bad_samples = [], []
         for sample in iter(get_iterator(args.dataset, False, 1)):
             img, true_lbl = sample
@@ -259,17 +258,24 @@ def on_end_epoch(state):
             if len(bad_samples) < num_bad and true_lbl != pred_lbl:
                 bad_samples.append(candidate)
 
+        cats = []
         for sample in good_samples:
             ground_truth, true_lbl, pred_lbl, all_reconstructions = sample
-            good_image = make_grid(torch.cat([ground_truth, all_reconstructions]), nrow=11, normalize=True, range=(0,1))
-            writer.add_image("Reconstruction (Figure 3) for Good Prediction. True: %d. Predicted: %d" % (true_lbl, pred_lbl), good_image, state['epoch'])
-            good_reconstruction_logger.log(good_image.numpy()) # modify title to include true and predicted label
-                
+            cat = torch.cat([ground_truth, all_reconstructions]).repeat(1, 3, 1, 1)
+            cat[true_lbl+1, 0] = 0
+            cat[true_lbl+1, 2] = 0
+            cats.append(cat)
         for sample in bad_samples:
             ground_truth, true_lbl, pred_lbl, all_reconstructions = sample
-            bad_image = make_grid(torch.cat([ground_truth, all_reconstructions]), nrow=11, normalize=True, range=(0,1))
-            writer.add_image("Reconstruction (Figure 3) for Bad Prediction. True: %d. Predicted: %d" % (true_lbl, pred_lbl), bad_image, state['epoch'])
-            bad_reconstruction_logger.log(bad_image.numpy()) # modify title to include true and predicted label
+            cat = torch.cat([ground_truth, all_reconstructions]).repeat(1, 3, 1, 1)
+            cat[true_lbl+1, 0] = 0
+            cat[true_lbl+1, 2] = 0
+            cat[pred_lbl+1, 1] = 0
+            cat[pred_lbl+1, 2] = 0
+            cats.append(cat)
+        image = make_grid(torch.cat(cats), nrow=11, normalize=True, range=(0,1))
+        writer.add_image("reconstruction_all", image, state['epoch'])
+        all_reconstruction_logger.log(image.numpy())
 
     if args.log_dir != '':
         f = open(log_path + '/test.txt','a')
