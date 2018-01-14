@@ -28,13 +28,14 @@ parser.add_argument("--momentum", default=0.9, type=float)
 # other parameters
 parser.add_argument('--gpu', default=0, type=int)
 parser.add_argument("--dataset", type=str, default="mnist", help="mnist, cifar10, fashion, svhn")
+parser.add_argument("--transform", action="store_true", help="affinely transform data when testing")
 parser.add_argument("--log_dir", default="logs", type=str)
 parser.add_argument("--model_dir", default="epochs", type=str)
 parser.add_argument("-l", "--loading_epoch", type=int, help="Last saved parameters for resuming training")
 parser.add_argument("-t", "--track", action="store_true")
-parser.add_argument("--max_epochs", default=500, type=int)
+parser.add_argument("--max_epochs", default=200, type=int)
 parser.add_argument("--num_classes", default=10, type=int)
-parser.add_argument("--visdom_port", type=int)
+parser.add_argument("--visdom_port", default=8097, type=int)
 args = parser.parse_args()
 
 # figure out names and if we're staring fresh
@@ -140,7 +141,7 @@ def on_end_epoch(state):
         train_error_logger.log(state['epoch'], meter_accuracy.value()[0])
     reset_meters()
     # test
-    engine.test(processor, get_iterator(args.dataset, False, args.batch_size))
+    engine.test(processor, get_iterator(args.dataset, False, args.batch_size, trans=args.transform))
     msg = '[Epoch %d] Testing Loss: %.4f (Accuracy: %.2f%%)' % (
         state['epoch'], meter_loss.value()[0], meter_accuracy.value()[0])
     if args.track:
@@ -149,7 +150,7 @@ def on_end_epoch(state):
         test_accuracy_logger.log(state['epoch'], meter_accuracy.value()[0])
         confusion_logger.log(confusion_meter.value())
         # reconstructions
-        test_sample = next(iter(get_iterator(args.dataset,False)))  # False sets value of train mode
+        test_sample = next(iter(get_iterator(args.dataset, False, trans=args.transform)))
         ground_truth = process(test_sample, True)
         _, reconstructions, perturbations = model(Variable(ground_truth).cuda(), perturb=True)
         reconstruction = reconstructions.cpu().view_as(ground_truth).data
