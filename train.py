@@ -39,7 +39,7 @@ parser.add_argument("--transform", action="store_true", help="affinely transform
 parser.add_argument("-l", "--loading_epoch", type=int, help="Last saved parameters for resuming training")
 parser.add_argument("-t", "--track", action="store_true")
 parser.add_argument("--max_epochs", default=200, type=int)
-parser.add_argument("--visdom_port", type=int)
+parser.add_argument("--visdom_port", default=8097,type=int)
 parser.add_argument("--test", action="store_true")
 args = parser.parse_args()
 

@@ -55,13 +55,15 @@ class AffinelyTransformed(data.Dataset):
         content = content.float()
         n_samples, img_w = content.size()[0], content.size()[1]
         assert content.size()[1] == content.size()[2]
-        angle_max, shear_max, disp_max = 20/360, 0.2, 1
+        angle_max, shear_max, disp_max, scale = 20/360, 0.1, 1, 1.5
         angles = np.random.uniform(-angle_max, angle_max, (n_samples))
         shears = np.random.uniform(-shear_max, shear_max, (n_samples))
         disps = np.random.uniform(-disp_max, disp_max, (n_samples, 2))
-        thetas = torch.FloatTensor([[[1+math.cos(angles[i]),       math.sin(angles[i]),   disps[i,0]], \
-                                   [shears[i]-math.sin(angles[i]), 1+math.cos(angles[i]), disps[i,1]]] \
-                                    for i in range(n_samples)])
+        scales = np.repeat([scale], (n_samples))
+        thetas = torch.FloatTensor(
+            [[[(1+math.cos(angles[i]))/scales[i], math.sin(angles[i]),               disps[i,0]], \
+              [shears[i]-math.sin(angles[i]),     (1+math.cos(angles[i]))/scales[i], disps[i,1]]] \
+             for i in range(n_samples)])
         grids = torch.nn.functional.affine_grid(thetas, size=torch.Size((n_samples,1,img_w,img_w)))
         content = torch.nn.functional.grid_sample(content.unsqueeze(1), grids)
         content = content.squeeze().data
