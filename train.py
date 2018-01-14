@@ -199,11 +199,7 @@ def on_end_epoch(state):
         all_metadata = torch.cat(all_metadata)
         all_label_img = torch.cat(all_label_img)
         for j in range(args.num_routing_iterations):
-            print(all_mat[j][0].size())
             cat = torch.cat(all_mat[j])
-            print(cat.size())
-            print(all_metadata.size())
-            print(all_label_img.size())
             writer.add_embedding(
                 cat,
                 metadata=all_metadata,
