@@ -5,7 +5,7 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 import numpy as np
-
+import torch.utils.data as data
 import torchnet as tnt
 
 
@@ -36,15 +36,13 @@ def augmentation(x, max_shift=2):
 from torchvision.datasets import MNIST, FashionMNIST, CIFAR10, SVHN
 import torchvision.transforms as transforms
 
-def get_iterator(dataset_name, mode, batch_size=100):
+def get_iterator(dataset_name, mode, batch_size=100, test=False):
     if dataset_name == "mnist":
         dataset = MNIST(root='./data/mnist', download=True, train=mode)
     elif dataset_name == "fashion":
         dataset = FashionMNIST(root='./data/fashion', download=True, train=mode)
     elif dataset_name == "cifar10":
-        #transform = transforms.Compose([transforms.ToTensor(),\
-        #                                transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
-        dataset = CIFAR10(root="./data/cifar10",download=True,train=mode)#, transform=transform)
+        dataset = CIFAR10(root="./data/cifar10",download=True,train=mode)
     elif dataset_name == "svhn":
         dataset = SVHN(root="./data/svhn", download=True, split=("train" if mode else "test"))
     else:
@@ -57,6 +55,9 @@ def get_iterator(dataset_name, mode, batch_size=100):
         labels = dataset.labels
     else:
         raise ValueError
+    if test:
+        data = data[:batch_size]
+        labels = labels[:batch_size]
     tensor_dataset = tnt.dataset.TensorDataset([data, labels])
     
     return tensor_dataset.parallel(batch_size=batch_size, num_workers=4, shuffle=mode)

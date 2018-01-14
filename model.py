@@ -33,13 +33,17 @@ class CapsuleLayer(nn.Module):
         scale = squared_norm / (1 + squared_norm)
         return scale * tensor / torch.sqrt(squared_norm)
 
-    def forward(self, x):   # x size = batches, maps, side, side
+    def forward(self, x, save_vecs = False):   # x size = batches, maps, side, side
+        if save_vecs:
+            vecs = []
         if self.num_route_nodes != -1:   # real capsule layer
             priors = x[None, :, :, None, :] @ self.route_weights[:, None, :, :, :]
             logits = Variable(torch.zeros(*priors.size())).cuda()
             for i in range(self.num_iterations):
                 probs = softmax(logits, dim=2)  # probs = c, logits = b (froom paper)
                 outputs = self.squash((probs * priors).sum(dim=2, keepdim=True))
+                if save_vecs:
+                    vecs.append(outputs)
                 if i != self.num_iterations - 1:
                     delta_logits = (priors * outputs).sum(dim=-1, keepdim=True)
                     logits = logits + delta_logits
@@ -47,7 +51,10 @@ class CapsuleLayer(nn.Module):
             outputs = [capsule(x).view(x.size(0), -1, 1) for capsule in self.capsules]
             outputs = torch.cat(outputs, dim=-1)
             outputs = self.squash(outputs)
-        return outputs
+        if save_vecs:
+            return vecs
+        else:
+            return outputs
 
 
 class CapsuleNet(nn.Module):
@@ -73,10 +80,15 @@ class CapsuleNet(nn.Module):
             nn.Sigmoid()
         )
 
-    def forward(self, x, y=None, perturb=False):
+    def forward(self, x, y=None, perturb=False, save_vecs=False):
         x = F.relu(self.conv1(x), inplace=True)
         x = self.primary_capsules(x)
-        x = self.digit_capsules(x).squeeze().transpose(0, 1)
+        vecs = self.digit_capsules(x, save_vecs=save_vecs)
+        if save_vecs:
+            x = vecs[-1]
+        else:
+            x = vecs
+        x = x.squeeze().transpose(0, 1)
         classes = (x ** 2).sum(dim=-1) ** 0.5
         classes = F.softmax(classes, dim=1)
         if y is None:
@@ -102,6 +114,9 @@ class CapsuleNet(nn.Module):
                     vec[len(r)*feature_index+i, 16*index+feature_index] = val
             perturbations = self.decoder(vec)
             ret.append(perturbations)
+
+        if save_vecs:
+            ret.append([vec.squeeze().transpose(0, 1) for vec in vecs])
 
         return tuple(ret)
 
