@@ -242,13 +242,15 @@ def on_end_epoch(state):
             ground_truth = process(img)
 
             classes, reconstruction, all_reconstructions = model(Variable(ground_truth).cuda(), all_reconstructions=True)
-             
+            
+
+            # print(reconstruction.size(), all_reconstruction.size())
             # get prediction
             _, max_length_indices = classes.max(dim=1)
             pred_lbl = max_length_indices.data[0]
     
             # for the given image, get all reconstructions for each class 
-            all_reconstructions = all_reconstructions.cpu().view(num_classes, 1, img_width, img_width).data # reconstructions: [torch.FloatTensor of size 10x1x28x28]
+            all_reconstructions = all_reconstructions.cpu().view(num_classes, img_channels, img_width, img_width).data # reconstructions: [torch.FloatTensor of size 10x1x28x28]
             candidate = (ground_truth, true_lbl, pred_lbl, all_reconstructions)
     
             # collect good samples
