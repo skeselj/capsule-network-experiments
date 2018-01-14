@@ -73,10 +73,11 @@ class CapsuleNet(nn.Module):
             nn.Sigmoid()
         )
 
-    def forward(self, x, y=None, perturb=False):
+    def forward(self, x, y=None, perturb=False, all_reconstructions=False):
+        batch_size = x.size()[0]
         x = F.relu(self.conv1(x), inplace=True)
         x = self.primary_capsules(x)
-        x = self.digit_capsules(x).squeeze().transpose(0, 1)
+        x = self.digit_capsules(x).view(self.num_classes, batch_size, 16).transpose(0, 1)
         classes = (x ** 2).sum(dim=-1) ** 0.5
         classes = F.softmax(classes, dim=1)
         if y is None:
@@ -87,8 +88,19 @@ class CapsuleNet(nn.Module):
             y_was_none = True
         else:
             y_was_none = False
-        reconstructions = self.decoder((x * y[:, :, None]).view(x.size(0), -1))
-        ret = [classes, reconstructions]
+
+        reconstruction = self.decoder((x * y[:,:, None]).view(x.size(0), -1))
+        ret = [classes, reconstruction]
+
+        if all_reconstructions:
+            reconstructions = []
+            for i in range(self.num_classes):
+                index = torch.from_numpy(np.array([[i]])).long().cuda().view(1)
+                mask = Variable(torch.sparse.torch.eye(self.num_classes)).cuda().index_select(dim=0, index=Variable(index))
+                reconstructions.append(self.decoder((x * mask[:, :, None]).view(x.size(0), -1)))   
+            reconstructions = torch.cat(reconstructions,  dim=0)
+            ret.append(reconstructions)        
+
 
         if y_was_none and perturb:
             r = torch.arange(-5, 6, 1)/20 # -0.25,-0.20,...,0.25

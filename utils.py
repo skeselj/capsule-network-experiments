@@ -57,6 +57,7 @@ def get_iterator(dataset_name, mode, batch_size=100):
         labels = dataset.labels
     else:
         raise ValueError
+
     tensor_dataset = tnt.dataset.TensorDataset([data, labels])
     
     return tensor_dataset.parallel(batch_size=batch_size, num_workers=4, shuffle=mode)
