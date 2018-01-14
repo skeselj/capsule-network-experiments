@@ -38,13 +38,13 @@ parser.add_argument("--tag")
 parser.add_argument("--transform", action="store_true", help="affinely transform data when testing")
 parser.add_argument("-l", "--loading_epoch", type=int, help="Last saved parameters for resuming training")
 parser.add_argument("-t", "--track", action="store_true")
-parser.add_argument("--max_epochs", default=200, type=int)
+parser.add_argument("--max_epochs", default=50, type=int)
 parser.add_argument("--visdom_port", default=8097,type=int)
 parser.add_argument("--test", action="store_true")
 args = parser.parse_args()
 
 # figure out names and if we're staring fresh
-name = "nr-"+ str(args.num_routing_iterations)
+name = "nr-"+ str(args.num_routing_iterations) + ("_trans" if args.transform else "")
 if args.tag is not None:
     name += "-" + args.tag
 model_path = os.path.join(args.model_dir, args.dataset, name)
