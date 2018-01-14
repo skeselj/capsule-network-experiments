@@ -189,7 +189,7 @@ def on_end_epoch(state):
         all_mat = defaultdict(list)
         all_metadata = []
         all_label_img = []
-        for i in range(100): # Accumulate more examples for embedding
+        for i in range(3 if args.test else 100): # Accumulate more examples for embedding
             test_sample = next(reconstruction_iter)
             if i == 0:
                 ground_truth = process(test_sample[0])
