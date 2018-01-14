@@ -1,5 +1,5 @@
 """
-Main
+train.py
 """
 
 import torch
@@ -39,7 +39,7 @@ parser.add_argument("--transform", action="store_true", help="affinely transform
 parser.add_argument("-l", "--loading_epoch", type=int, help="Last saved parameters for resuming training")
 parser.add_argument("-t", "--track", action="store_true")
 parser.add_argument("--max_epochs", default=50, type=int)
-parser.add_argument("--visdom_port", default=8097,type=int)
+parser.add_argument("--visdom_port", default=8097, type=int)
 parser.add_argument("--test", action="store_true")
 args = parser.parse_args()
 
@@ -128,6 +128,7 @@ ground_truth_logger = VisdomLogger('image', opts={'title': 'Ground Truth'}, port
 reconstruction_logger = VisdomLogger('image', opts={'title': 'Reconstruction'}, port=args.visdom_port)
 perturbation_sample_logger = VisdomLogger('image', opts={'title': 'Perturbation'}, port=args.visdom_port)
 
+all_reconstruction_logger = VisdomLogger('image', opts={'title': 'Figure 3: Reconstruction of Good/Bad Predictions'}, port=args.visdom_port)
 
 def embedding(sample, all_mat, all_metadata, all_label_img):
     processed = process(sample[0])
@@ -190,8 +191,8 @@ def on_end_epoch(state):
             test_sample = next(reconstruction_iter)
             if i == 0:
                 ground_truth = process(test_sample[0])
-                _, reconstructions, perturbations = model(Variable(ground_truth).cuda(), perturb=state['epoch']%args.batch_size)
-                reconstruction = reconstructions.cpu().view_as(ground_truth).data
+                _, reconstruction, perturbations = model(Variable(ground_truth).cuda(), perturb=state['epoch']%args.batch_size)
+                reconstruction = reconstruction.cpu().view_as(ground_truth).data
                 size = list(ground_truth.size())
                 size[0] = 16 * 11
                 perturbation = perturbations.cpu().view(size).data
@@ -219,14 +220,67 @@ def on_end_epoch(state):
         )
 
         gt_image = make_grid(ground_truth, nrow=int(args.batch_size ** 0.5), normalize=True, range=(0, 1))
-        writer.add_image("Ground Truth", gt_image, state['epoch'])
+        writer.add_image("groundtruth", gt_image, state['epoch'])
         ground_truth_logger.log(gt_image.numpy())
         r_image = make_grid(reconstruction, nrow=int(args.batch_size ** 0.5), normalize=True, range=(0, 1))
-        writer.add_image("Reconstruction", r_image, state['epoch'])
+        writer.add_image("reconstruction", r_image, state['epoch'])
         reconstruction_logger.log(r_image.numpy())
         p_image = make_grid(perturbation, nrow=11, normalize=True, range=(0, 1))
-        writer.add_image("Perturbation (Figure 4)", p_image, state['epoch'])
+        writer.add_image("perturbation", p_image, state['epoch'])
         perturbation_sample_logger.log(p_image.numpy())
+
+        # fig 3: all reconstructions across all target classes
+        num_good, num_bad = 1, 1
+        good_samples, bad_samples = [], []
+        for sample in iter(get_iterator(args.dataset, False, 1)):
+            img, true_lbl = sample
+            true_lbl = int(true_lbl[0])
+
+            if len(good_samples) == num_good and len(bad_samples) == num_bad:
+                break
+
+            ground_truth = process(img)
+
+            classes, reconstruction, all_reconstructions = model(Variable(ground_truth).cuda(), all_reconstructions=True)
+            
+
+            # print(reconstruction.size(), all_reconstruction.size())
+            # get prediction
+            _, max_length_indices = classes.max(dim=1)
+            pred_lbl = max_length_indices.data[0]
+    
+            # for the given image, get all reconstructions for each class 
+            all_reconstructions = all_reconstructions.cpu().view(num_classes, img_channels, img_width, img_width).data # reconstructions: [torch.FloatTensor of size 10x1x28x28]
+            candidate = (ground_truth, true_lbl, pred_lbl, all_reconstructions)
+    
+            # collect good samples
+            if len(good_samples) < num_good and true_lbl == pred_lbl:
+                good_samples.append(candidate)
+
+            if len(bad_samples) < num_bad and true_lbl != pred_lbl:
+                bad_samples.append(candidate)
+
+        cats = []
+        for sample in good_samples + bad_samples:
+            ground_truth, true_lbl, pred_lbl, all_reconstructions = sample
+            cat = torch.cat([ground_truth, all_reconstructions])
+            maximum = cat.max()
+            if cat.size(1) == 1:
+                cat = cat.repeat(1, 3, 1, 1)
+            cat[true_lbl+1, 1, -2:] = maximum
+            cat[true_lbl+1, 1, :2] = maximum
+            cat[true_lbl+1, 1, :, -2:] = maximum
+            cat[true_lbl+1, 1, :, :2] = maximum
+            if pred_lbl != true_lbl:
+                cat[pred_lbl+1, 0, -2:] = maximum
+                cat[pred_lbl+1, 0, :2] = maximum
+                cat[pred_lbl+1, 0, :, -2:] = maximum
+                cat[pred_lbl+1, 0, :, :2] = maximum
+            cats.append(cat)
+        image = make_grid(torch.cat(cats), nrow=1+num_classes, normalize=True, range=(0,1))
+        writer.add_image("reconstruction_all", image, state['epoch'])
+        all_reconstruction_logger.log(image.numpy())
+
     if args.log_dir != '':
         f = open(log_path + '/test.txt','a')
         f.write(msg + "\n")
@@ -266,10 +320,10 @@ def processor(sample):
     data = Variable(data).cuda()
     labels = Variable(labels).cuda()
     if training:
-        classes, reconstructions = model(data, labels)
+        classes, reconstruction = model(data, labels)
     else:
-        classes, reconstructions = model(data)
-    loss = capsule_loss(data, labels, classes, reconstructions)
+        classes, reconstruction = model(data)
+    loss = capsule_loss(data, labels, classes, reconstruction)
     return loss, classes
 
 engine.train(processor, get_iterator(args.dataset, True, test=args.test), \
