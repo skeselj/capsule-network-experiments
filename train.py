@@ -2,26 +2,27 @@
 train.py
 """
 
+import sys
+import os
+from collections import defaultdict
+import numpy as np
+import argparse
+from tqdm import tqdm
+from datetime import datetime
+
 import torch
 import torch.nn.functional as F
 from torch import nn
-import numpy as np
-
 from torch.autograd import Variable
 import torchnet as tnt
 from torchvision.utils import make_grid
 from torch.optim import Adam
 from torchnet.engine import Engine
 from torchnet.logger import VisdomPlotLogger, VisdomLogger, VisdomTextLogger
-from tqdm import tqdm
+import torchvision.models as models
 
 from tensorboardX import SummaryWriter
-from datetime import datetime
 
-from collections import defaultdict
-import sys
-import os
-import argparse
 parser = argparse.ArgumentParser()
 # hyperparameters
 parser.add_argument("--batch_size", default=100, type=int)
@@ -29,22 +30,25 @@ parser.add_argument("--num_routing_iterations", default=3, type=int)
 parser.add_argument("--lr_init", default=0.001, type=float)
 parser.add_argument("--lr_decay", default=0, type=float)
 parser.add_argument("--momentum", default=0.9, type=float)
-# other parameters
-parser.add_argument('--gpu', default=0, type=int)
+# affect operation of training/testing
 parser.add_argument("--dataset", type=str, default="mnist", help="mnist, cifar10, fashion, svhn")
+parser.add_argument("--transform", action="store_true", help="affinely transform data when testing")
+parser.add_argument("--max_epochs", default=50, type=int)
+parser.add_argument("-l", "--loading_epoch", type=int, help="Last saved parameters for resuming training")
+parser.add_argument("--test", action="store_true")
+# logging
 parser.add_argument("--log_dir", default="logs")
 parser.add_argument("--model_dir", default="epochs")
 parser.add_argument("--tb_dir", default="tb")
 parser.add_argument("--tag")
-parser.add_argument("--transform", action="store_true", help="affinely transform data when testing")
-parser.add_argument("-l", "--loading_epoch", type=int, help="Last saved parameters for resuming training")
 parser.add_argument("-t", "--track", action="store_true")
-parser.add_argument("--max_epochs", default=50, type=int)
+# system
+parser.add_argument('--gpu', default=0, type=int)
 parser.add_argument("--visdom_port", default=8097, type=int)
-parser.add_argument("--test", action="store_true")
 args = parser.parse_args()
 
-# figure out names and if we're staring fresh
+
+# figure out names and if we're staring fresh (which means we'll rewrite logs and not load models)
 name = "nr-"+ str(args.num_routing_iterations) + ("-trans" if args.transform else "") + ("-test" if args.test else "")
 if args.tag is not None:
     name += "-" + args.tag
@@ -52,7 +56,6 @@ model_path = os.path.join(args.model_dir, args.dataset, name)
 log_path = os.path.join(args.log_dir, args.dataset, name)
 tb_path = os.path.join(args.tb_dir, args.dataset, name, datetime.now().isoformat().replace(":", "-"))
 visdom_env = args.dataset + "-" + name
-starting_fresh = args.loading_epoch == None
 if args.track:
     assert args.visdom_port is not None
     writer = SummaryWriter(tb_path)
@@ -60,6 +63,7 @@ if args.track:
     writer.add_text("hyperparameters/lr_init", str(args.lr_init))
     writer.add_text("hyperparameters/lr_decay", str(args.lr_decay))
     writer.add_text("hyperparameters/momentum", str(args.momentum))
+starting_fresh = args.loading_epoch == None
 
 # setup dirs if not created
 if args.model_dir != '':
@@ -71,7 +75,7 @@ if args.log_dir != '' and starting_fresh:
     f = open(log_path + '/test.txt','w')
     f.close()
 
-# print info about this run to visdom
+# print info about this run to visdom if it's a continuation
 if not starting_fresh and args.track:
     text_logger = VisdomTextLogger(port=args.visdom_port)
     text_logger.log("dataset: " + "________________ " + str(args.dataset) + " " \
@@ -79,7 +83,7 @@ if not starting_fresh and args.track:
                     "num_routing_iterations " + "________ " + str(args.num_routing_iterations) + " "\
                     "loading_epoch " + "_____________ " + str(args.loading_epoch))
 
-# gpu and dataset
+# configure gpu and dataset
 os.environ['CUDA_VISIBLE_DEVICES'] = str(args.gpu)
 if args.dataset in ['mnist', 'fashion']:
     img_channels = 1
@@ -89,22 +93,20 @@ elif args.dataset in ['cifar10', 'svhn']:
     img_width = 32
 else:
     raise ValueError
-
 def classes(dataset):
     if dataset in ['mnist', 'fashion', 'cifar10', 'svhn']:
         return 10
     else:
         raise ValueError
-
 num_classes = classes(args.dataset)
 
-### model and its loss
+### specify model and its loss
 from model import CapsuleLayer, CapsuleNet, CapsuleLoss
 model = CapsuleNet(img_channels, num_classes, args.num_routing_iterations, img_width)
+model.cuda()
 if not starting_fresh:
     print("Loading " + model_path)
     model.load_state_dict(torch.load(model_path +'/epoch_%d.pt' % args.loading_epoch))
-model.cuda()
 capsule_loss = CapsuleLoss()
 optimizer = Adam(model.parameters(), \
                  lr=args.lr_init, betas=(args.momentum, 0.999), eps=1e-8, weight_decay=args.lr_decay)
@@ -131,6 +133,7 @@ reconstruction_logger = VisdomLogger('image', env=visdom_env, opts={'title': 'Re
 perturbation_sample_logger = VisdomLogger('image', env=visdom_env, opts={'title': 'Perturbation'}, port=args.visdom_port)
 
 all_reconstruction_logger = VisdomLogger('image', env=visdom_env, opts={'title': 'Figure 3: Reconstruction of Good/Bad Predictions'}, port=args.visdom_port)
+
 
 def embedding(sample, all_mat, all_metadata, all_label_img):
     processed = process(sample[0])
