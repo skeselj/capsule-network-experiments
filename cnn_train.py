@@ -80,7 +80,7 @@ from cnn_model import smallnet
 model = smallnet(in_channels=img_channels)
 model.cuda()
 capsule_loss = nn.BCELoss()
-optimizer = Adam(model.parameters())
+optimizer = Adam(model.parameters(), lr=0.0005)
 
 ### wrappers for metrics (loss, accuracy, confusion)
 meter_loss = tnt.meter.AverageValueMeter()
