@@ -1,13 +1,7 @@
 # Capsule Network Experiments
 
-Started with this code: https://github.com/gram-ai/capsule-networks
+We started with this code: https://github.com/gram-ai/capsule-networks and added support for different experiments.
 
-Key Files:
+Key files: train.py (trains and tests a capsule network), model.py (defines the capsule network)
 
-train.py -> run this file
-
-model.py -> capsule network
-
-utils.py -> data loader
-
-cnn_model.py -> baseline AlexNet model
+For requirements use the requirements.txt file.
