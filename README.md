@@ -1,5 +1,7 @@
 # Capsule Network Experiments
 
+Get a project overview by reading writeup.pdf.
+
 We started with this code: https://github.com/gram-ai/capsule-networks and added support for different experiments.
 
 Key files: train.py (trains and tests a capsule network), model.py (defines the capsule network)
