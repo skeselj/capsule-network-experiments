@@ -11,7 +11,7 @@ olefile==0.44
 Pillow==5.0.0
 protobuf==3.5.1
 pycparser==2.18
-PyYAML==3.12
+PyYAML==5.4
 pyzmq==16.0.3
 requests==2.18.4
 scipy==1.0.0
